@@ -14,4 +14,4 @@ fi
 # Start the React development server
 echo "Starting React development server on http://localhost:3000"
 cd frontend
-npm start
+DANGEROUSLY_DISABLE_HOST_CHECK=true npm start
