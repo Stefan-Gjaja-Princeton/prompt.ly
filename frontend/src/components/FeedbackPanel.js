@@ -1,0 +1,177 @@
+import React from "react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Lightbulb,
+  AlertCircle,
+} from "lucide-react";
+import "./FeedbackPanel.css";
+
+const FeedbackPanel = ({
+  qualityScore,
+  feedback,
+  isTerse,
+  loading = false,
+}) => {
+  const getScoreColor = (score) => {
+    if (score === null) return "#6c757d"; // Gray for no score
+    if (score >= 8) return "#28a745";
+    if (score >= 6) return "#ffc107";
+    if (score >= 4) return "#fd7e14";
+    return "#dc3545";
+  };
+
+  const getScoreLabel = (score) => {
+    if (score === null) return "No Score Yet";
+    if (score >= 8) return "Excellent";
+    if (score >= 6) return "Good";
+    if (score >= 4) return "Fair";
+    return "Poor";
+  };
+
+  const getScoreIcon = (score) => {
+    if (score === null) return null; // No icon for no score
+    if (score >= 6) return <TrendingUp size={16} />;
+    return <TrendingDown size={16} />;
+  };
+
+  const getQualityAdvice = (score) => {
+    if (score === null) {
+      return "Submit your first message to get your prompt quality score and personalized feedback!";
+    } else if (score >= 8) {
+      return "Excellent! Your prompts show strong specificity, context awareness, and critical thinking.";
+    } else if (score >= 6) {
+      return "Good prompting! Consider adding more context and building on previous conversation.";
+    } else if (score >= 4) {
+      return "Your prompts need improvement. Be more specific and reference previous context.";
+    } else if (score >= 2) {
+      return "Poor prompting quality. Provide specific details and context. What exactly do you need?";
+    } else {
+      return "Very poor prompting. Be much more specific and provide context. Avoid vague requests.";
+    }
+  };
+
+  return (
+    <div className="feedback-panel">
+      <div className="feedback-header">
+        <h2>Quality Feedback</h2>
+        <div className="feedback-subtitle">Real-time prompt analysis</div>
+      </div>
+
+      <div className="feedback-content">
+        {/* Quality Score Section */}
+        <div className="score-section">
+          <div className="score-header">
+            <Target size={20} />
+            <span>Current Score</span>
+          </div>
+
+          <div className="score-display">
+            {loading ? (
+              <div className="score-circle loading">
+                <div className="score-inner">
+                  <div className="loading-spinner"></div>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="score-circle"
+                style={{
+                  background:
+                    qualityScore === null
+                      ? `conic-gradient(#e0e0e0 360deg, #e0e0e0 0deg)`
+                      : `conic-gradient(${getScoreColor(qualityScore)} ${
+                          qualityScore * 36
+                        }deg, #e0e0e0 0deg)`,
+                }}
+              >
+                <div className="score-inner">
+                  <span className="score-number">
+                    {qualityScore === null ? "—" : qualityScore.toFixed(1)}
+                  </span>
+                  <span className="score-max">/10</span>
+                </div>
+              </div>
+            )}
+
+            <div className="score-info">
+              {loading ? (
+                <div className="score-label loading-text">
+                  <div className="loading-dots">Analyzing prompt...</div>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className="score-label"
+                    style={{ color: getScoreColor(qualityScore) }}
+                  >
+                    {getScoreIcon(qualityScore)}
+                    {getScoreLabel(qualityScore)}
+                  </div>
+                  <div className="score-advice">
+                    {getQualityAdvice(qualityScore)}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Terse Mode Warning */}
+        {isTerse && qualityScore !== null && (
+          <div className="terse-warning">
+            <AlertCircle size={16} />
+            <div>
+              <strong>Response Quality Reduced</strong>
+              <p>
+                {qualityScore <= 3
+                  ? "AI responses are very limited due to poor prompt quality. Be much more specific and provide context."
+                  : "AI responses are limited due to below-average prompt quality. Improve specificity and context awareness."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Feedback Section */}
+        <div className="feedback-section">
+          <div className="feedback-header-section">
+            <Lightbulb size={20} />
+            <span>Improvement Tips</span>
+          </div>
+
+          <div className="feedback-text">
+            {qualityScore === null
+              ? "Send your first message to get personalized feedback on your prompting style!"
+              : feedback ||
+                "Send a message to get personalized feedback on your prompting style."}
+          </div>
+        </div>
+
+        {/* Quick Tips */}
+        <div className="tips-section">
+          <h3>Scoring Criteria</h3>
+          <ul className="tips-list">
+            <li>
+              <strong>Specificity:</strong> Be detailed and specific
+            </li>
+            <li>
+              <strong>Context:</strong> Reference previous conversation
+            </li>
+            <li>
+              <strong>Critical Thinking:</strong> Show analysis and reasoning
+            </li>
+            <li>
+              <strong>Clarity:</strong> Use clear, well-structured language
+            </li>
+            <li>
+              <strong>Engagement:</strong> Build on AI responses
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default FeedbackPanel;

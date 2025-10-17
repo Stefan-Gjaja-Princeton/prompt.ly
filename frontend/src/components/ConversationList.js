@@ -1,0 +1,78 @@
+import React from "react";
+import { Plus, MessageSquare, Clock } from "lucide-react";
+import "./ConversationList.css";
+
+const ConversationList = ({
+  conversations,
+  currentConversationId,
+  onSelectConversation,
+  onCreateNew,
+}) => {
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) return "Today";
+    if (diffDays === 2) return "Yesterday";
+    if (diffDays <= 7) return `${diffDays - 1} days ago`;
+    return date.toLocaleDateString();
+  };
+
+  return (
+    <div className="conversation-list">
+      <div className="conversation-header">
+        <h2>Conversations</h2>
+        <button
+          className="new-conversation-btn"
+          onClick={onCreateNew}
+          title="Start new conversation"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
+
+      <div className="conversation-items">
+        {conversations.length === 0 ? (
+          <div className="empty-state">
+            <MessageSquare size={48} className="empty-icon" />
+            <p>No conversations yet</p>
+            <button className="start-conversation-btn" onClick={onCreateNew}>
+              Start your first conversation
+            </button>
+          </div>
+        ) : (
+          conversations.map((conversation) => (
+            <div
+              key={conversation.conversation_id}
+              className={`conversation-item ${
+                currentConversationId === conversation.conversation_id
+                  ? "active"
+                  : ""
+              }`}
+              onClick={() => onSelectConversation(conversation.conversation_id)}
+            >
+              <div className="conversation-content">
+                <h3 className="conversation-title">
+                  {conversation.title || "Untitled Conversation"}
+                </h3>
+                <div className="conversation-meta">
+                  <span className="message-count">
+                    {conversation.message_count || 0} messages
+                  </span>
+                  <span className="conversation-date">
+                    <Clock size={12} />
+                    {formatDate(conversation.updated_at)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ConversationList;
