@@ -68,7 +68,6 @@ def get_conversations():
     try:
         user_email = request.current_user.get('email')
         if not user_email:
-            print(f"ERROR: No email in current_user: {request.current_user}")
             return jsonify({"error": "User email not found"}), 500
         
         conversation_ids = db.get_user_conversations(user_email)
@@ -153,10 +152,6 @@ def send_message(conversation_id):
         # Get feedback and score FIRST (before AI response)
         rolling_average_score, feedback, current_message_score = ai_service.get_feedback_response(messages, previous_scores)
         
-        print(f"DEBUG: Previous scores: {previous_scores}")
-        print(f"DEBUG: Current message score: {current_message_score}")
-        print(f"DEBUG: Rolling average score: {rolling_average_score}")
-        
         # Update conversation with new messages and rolling average score FIRST
         new_message_scores = previous_scores + [current_message_score]
         db.update_conversation(conversation_id, messages, rolling_average_score, new_message_scores)
@@ -193,9 +188,6 @@ def get_ai_response(conversation_id):
         try:
             ai_response = ai_service.get_chat_response(messages, current_quality_score, user_name=first_name)
         except Exception as ai_error:
-            print(f"ERROR: Failed to get AI response: {ai_error}")
-            import traceback
-            traceback.print_exc()
             return jsonify({"error": f"Failed to generate AI response: {str(ai_error)}"}), 500
         
         # Add AI response to messages
