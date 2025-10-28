@@ -3,6 +3,7 @@ from flask_cors import CORS
 from config import Config
 from database import Database
 from ai_service import AIService
+from auth_service import require_auth
 import uuid
 from datetime import datetime
 
@@ -23,18 +24,54 @@ if not Config.OPENAI_API_KEY or Config.OPENAI_API_KEY == "your-api-key-here":
 
 ai_service = AIService(Config.OPENAI_API_KEY)
 
-# Default user ID for now (no login system yet)
-DEFAULT_USER_ID = "default_user"
-
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "healthy"})
 
-@app.route('/api/conversations', methods=['GET'])
-def get_conversations():
-    """Get all conversations for the default user"""
+# User profile endpoint
+@app.route('/api/user/profile', methods=['GET'])
+@require_auth
+def get_user_profile():
+    """Get current user profile"""
     try:
-        conversation_ids = db.get_user_conversations(DEFAULT_USER_ID)
+        user_data = request.current_user
+        
+        # Get or create user in database
+        email = user_data['email']
+        existing_user = db.get_user_by_email(email)
+        
+        if not existing_user:
+            # Create new user from Auth0 data
+            first_name = user_data.get('name', [''])[0] if isinstance(user_data.get('name'), list) else ''
+            last_name = user_data.get('name', ['', ''])[1] if isinstance(user_data.get('name'), list) and len(user_data.get('name', [])) > 1 else ''
+            
+            db.create_user(
+                email=email,
+                first_name=first_name or user_data.get('nickname', ''),
+                last_name=last_name,
+                google_id=user_data.get('sub'),
+                profile_picture_url=user_data.get('picture')
+            )
+            existing_user = db.get_user_by_email(email)
+        else:
+            # Update last login
+            db.update_user_login(email)
+        
+        return jsonify(existing_user)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/conversations', methods=['GET'])
+@require_auth
+def get_conversations():
+    """Get all conversations for the authenticated user"""
+    try:
+        user_email = request.current_user.get('email')
+        if not user_email:
+            print(f"ERROR: No email in current_user: {request.current_user}")
+            return jsonify({"error": "User email not found"}), 500
+        
+        conversation_ids = db.get_user_conversations(user_email)
         conversations = []
         
         for conv_id in conversation_ids:
@@ -49,16 +86,18 @@ def get_conversations():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/conversations', methods=['POST'])
+@require_auth
 def create_conversation():
     """Create a new conversation"""
     try:
+        user_email = request.current_user['email']
         conversation_id = str(uuid.uuid4())
         
-        # Ensure user exists
-        db.create_user(DEFAULT_USER_ID)
+        # Ensure user exists in DB (idempotent)
+        db.create_user(user_email)
         
         # Create conversation
-        success = db.create_conversation(DEFAULT_USER_ID, conversation_id)
+        success = db.create_conversation(user_email, conversation_id)
         
         if success:
             return jsonify({
@@ -72,6 +111,7 @@ def create_conversation():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/conversations/<conversation_id>', methods=['GET'])
+@require_auth
 def get_conversation(conversation_id):
     """Get a specific conversation"""
     try:
@@ -84,6 +124,7 @@ def get_conversation(conversation_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/conversations/<conversation_id>/messages', methods=['POST'])
+@require_auth
 def send_message(conversation_id):
     """Send a message to a conversation"""
     try:
@@ -132,6 +173,7 @@ def send_message(conversation_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/conversations/<conversation_id>/response', methods=['POST'])
+@require_auth
 def get_ai_response(conversation_id):
     """Get AI response for a conversation after feedback is ready"""
     try:
@@ -143,8 +185,18 @@ def get_ai_response(conversation_id):
         messages = conversation['messages']
         current_quality_score = conversation['quality_score'] or 5.0
         
+        # Get user's first name for personalization
+        user_data = request.current_user
+        first_name = user_data.get('name', [''])[0] if isinstance(user_data.get('name'), list) else user_data.get('nickname', '')
+        
         # Get AI response using the current score
-        ai_response = ai_service.get_chat_response(messages, current_quality_score)
+        try:
+            ai_response = ai_service.get_chat_response(messages, current_quality_score, user_name=first_name)
+        except Exception as ai_error:
+            print(f"ERROR: Failed to get AI response: {ai_error}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Failed to generate AI response: {str(ai_error)}"}), 500
         
         # Add AI response to messages
         messages.append({
@@ -165,6 +217,7 @@ def get_ai_response(conversation_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/conversations/<conversation_id>/title', methods=['PUT'])
+@require_auth
 def update_conversation_title(conversation_id):
     """Update conversation title (for future use)"""
     try:
@@ -179,9 +232,6 @@ def update_conversation_title(conversation_id):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    # Ensure default user exists
-    db.create_user(DEFAULT_USER_ID)
-    
     print("Starting Prompt.ly backend server...")
     
     app.run(debug=True, host='0.0.0.0', port=5001)

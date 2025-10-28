@@ -15,6 +15,10 @@ fi
 echo "Activating virtual environment..."
 source backend/venv/bin/activate
 
+set -a
+[ -f backend/.env ] && source backend/.env
+set +a
+
 # Install dependencies
 echo "Installing Python dependencies..."
 cd backend

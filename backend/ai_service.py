@@ -7,25 +7,28 @@ class AIService:
         self.client = openai.OpenAI(api_key=api_key)
         self.model = "gpt-4o"  # Easily modifiable
     
-    def get_chat_response(self, messages: List[Dict], quality_score: float) -> str:
+    def get_chat_response(self, messages: List[Dict], quality_score: float, user_name: str = None) -> str:
         """Get response from the main chat AI based on quality score"""
+        
+        # Create personalized greeting if user name is available
+        name_context = f" Address the user as {user_name} once every 5 messages. Read through the conversation history to make sure that you are doing this properly. Don't name the user every single time you respond." if user_name else ""
         
         if quality_score <= 3:
             # SUPER terse - very minimal responses with strong prodding
-            system_prompt = """You are a helpful AI assistant, but the user's prompt quality is very poor. 
+            system_prompt = f"""You are a helpful AI assistant, but the user's prompt quality is very poor.{name_context}
             Respond in 20-30 words maximum. Be direct and ask for more specific information. 
             Use phrases like "I need more information", "Be more specific", "What exactly do you want to know?"
             Don't provide answers - only ask clarifying questions."""
             max_tokens = 100
         elif quality_score <= 5:
             # Moderately terse - brief responses with follow-up questions
-            system_prompt = """You are a helpful AI assistant. The user's prompt quality is below average. 
+            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is below average.{name_context}
             Provide brief responses (50-100 words) and ask follow-up questions to encourage better prompting.
             Ask for more context, specificity, or clarification. Guide them to ask better questions."""
             max_tokens = 200
         else:
             # Normal helpful responses
-            system_prompt = """You are a helpful AI assistant. Provide clear, accurate, and useful responses to user questions.
+            system_prompt = f"""You are a helpful AI assistant.{name_context} Provide clear, accurate, and useful responses to user questions.
             Be thorough and helpful while encouraging good prompting practices."""
             max_tokens = 1000
         

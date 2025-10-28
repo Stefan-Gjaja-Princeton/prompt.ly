@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 import "./App.css";
 import ConversationList from "./components/ConversationList";
 import ChatWindow from "./components/ChatWindow";
 import FeedbackPanel from "./components/FeedbackPanel";
-import { apiService } from "./services/apiService";
+import UserHeader from "./components/UserHeader";
+import LoginPage from "./components/LoginPage";
+import { createApiService } from "./services/apiService";
 
 function App() {
+  const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
+  const apiService = createApiService(getAccessTokenSilently);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -130,8 +135,17 @@ function App() {
     setCurrentConversationId(conversationId);
   };
 
+  if (isLoading) {
+    return <div className="app">Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="app">
+      <UserHeader />
       <div className="app-container">
         <ConversationList
           conversations={conversations}

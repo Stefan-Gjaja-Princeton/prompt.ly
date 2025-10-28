@@ -14,3 +14,9 @@ class Config:
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or API_KEY_FROM_FILE
     DATABASE_URL = 'sqlite:///promptly.db'
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    
+    # ANCHOR: Add your Auth0 configuration
+    AUTH0_DOMAIN = os.getenv('AUTH0_DOMAIN', '')
+    AUTH0_API_AUDIENCE = os.getenv('AUTH0_API_AUDIENCE', '')
+    AUTH0_ALGORITHMS = os.getenv('AUTH0_ALGORITHMS', 'RS256')
+    AUTH0_ISSUER = f"https://{os.getenv('AUTH0_DOMAIN', '')}/" if os.getenv('AUTH0_DOMAIN') else ''

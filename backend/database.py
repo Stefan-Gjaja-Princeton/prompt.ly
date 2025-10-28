@@ -31,12 +31,17 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             
-            # Create users table
+            # Create users table (email-based auth)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
-                    user_id TEXT PRIMARY KEY,
+                    email TEXT PRIMARY KEY,
+                    first_name TEXT,
+                    last_name TEXT,
+                    google_id TEXT,
+                    profile_picture_url TEXT,
                     conversation_ids TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             
@@ -44,13 +49,13 @@ class Database:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS conversations (
                     conversation_id TEXT PRIMARY KEY,
-                    user_id TEXT,
+                    user_email TEXT,
                     messages TEXT,
                     current_quality_score REAL DEFAULT NULL,
                     message_scores TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users (user_id)
+                    FOREIGN KEY (user_email) REFERENCES users (email)
                 )
             ''')
             
@@ -61,16 +66,16 @@ class Database:
             if conn:
                 conn.close()
     
-    def create_user(self, user_id: str) -> bool:
-        """Create a new user"""
+    def create_user(self, email: str, first_name: str = None, last_name: str = None, google_id: str = None, profile_picture_url: str = None) -> bool:
+        """Create a new user (idempotent for existing users)"""
         conn = None
         try:
             conn = sqlite3.connect(self.db_path, timeout=30.0)
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO users (user_id, conversation_ids) VALUES (?, ?)",
-                (user_id, json.dumps([]))
+                "INSERT OR IGNORE INTO users (email, first_name, last_name, google_id, profile_picture_url, conversation_ids) VALUES (?, ?, ?, ?, ?, ?)",
+                (email, first_name, last_name, google_id, profile_picture_url, json.dumps([]))
             )
             conn.commit()
             return True
@@ -83,14 +88,59 @@ class Database:
             if conn:
                 conn.close()
     
-    def get_user_conversations(self, user_id: str) -> List[str]:
+    def get_user_by_email(self, email: str) -> Optional[Dict]:
+        """Fetch a user record by email"""
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT email, first_name, last_name, google_id, profile_picture_url, created_at, last_login FROM users WHERE email = ?",
+                (email,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                'email': row[0],
+                'first_name': row[1],
+                'last_name': row[2],
+                'google_id': row[3],
+                'profile_picture_url': row[4],
+                'created_at': row[5],
+                'last_login': row[6],
+            }
+        except Exception as e:
+            print(f"Error getting user by email: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
+    
+    def update_user_login(self, email: str) -> None:
+        """Update last_login when a user signs in"""
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE email = ?", (email,))
+            conn.commit()
+        except Exception as e:
+            print(f"Error updating user last_login: {e}")
+        finally:
+            if conn:
+                conn.close()
+    
+    def get_user_conversations(self, email: str) -> List[str]:
         """Get all conversation IDs for a user"""
         conn = None
         try:
             conn = sqlite3.connect(self.db_path, timeout=30.0)
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
-            cursor.execute("SELECT conversation_ids FROM users WHERE user_id = ?", (user_id,))
+            cursor.execute("SELECT conversation_ids FROM users WHERE email = ?", (email,))
             result = cursor.fetchone()
             
             if result:
@@ -103,7 +153,7 @@ class Database:
             if conn:
                 conn.close()
     
-    def create_conversation(self, user_id: str, conversation_id: str) -> bool:
+    def create_conversation(self, email: str, conversation_id: str) -> bool:
         """Create a new conversation"""
         conn = None
         try:
@@ -116,16 +166,16 @@ class Database:
             
             # Create conversation
             cursor.execute(
-                "INSERT INTO conversations (conversation_id, user_id, messages) VALUES (?, ?, ?)",
-                (conversation_id, user_id, json.dumps([]))
+                "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (?, ?, ?)",
+                (conversation_id, email, json.dumps([]))
             )
             
             # Update user's conversation list
-            conversations = self.get_user_conversations(user_id)
+            conversations = self.get_user_conversations(email)
             conversations.append(conversation_id)
             cursor.execute(
-                "UPDATE users SET conversation_ids = ? WHERE user_id = ?",
-                (json.dumps(conversations), user_id)
+                "UPDATE users SET conversation_ids = ? WHERE email = ?",
+                (json.dumps(conversations), email)
             )
             
             # Commit transaction
@@ -148,7 +198,7 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT user_id, messages, current_quality_score, message_scores FROM conversations WHERE conversation_id = ?",
+                "SELECT user_email, messages, current_quality_score, message_scores FROM conversations WHERE conversation_id = ?",
                 (conversation_id,)
             )
             result = cursor.fetchone()
@@ -162,7 +212,7 @@ class Database:
                         message_scores = []
                 
                 return {
-                    'user_id': result[0],
+                    'user_email': result[0],
                     'messages': json.loads(result[1]),
                     'quality_score': result[2] if result[2] is not None else None,
                     'message_scores': message_scores
@@ -205,7 +255,7 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT user_id, messages, created_at, updated_at FROM conversations WHERE conversation_id = ?",
+                "SELECT user_email, messages, created_at, updated_at FROM conversations WHERE conversation_id = ?",
                 (conversation_id,)
             )
             result = cursor.fetchone()
@@ -215,7 +265,7 @@ class Database:
                 first_message = messages[0]['content'] if messages else "New conversation"
                 return {
                     'conversation_id': conversation_id,
-                    'user_id': result[0],
+                    'user_email': result[0],
                     'title': first_message[:50] + "..." if len(first_message) > 50 else first_message,
                     'created_at': result[2],
                     'updated_at': result[3],
