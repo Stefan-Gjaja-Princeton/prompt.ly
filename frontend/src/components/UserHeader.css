@@ -1,14 +1,15 @@
 .user-header {
   display: flex;
-  /* remove fixed positioning so it participates in layout */
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  height: 56px;
+  height: 60px;
   width: 100%;
-  flex-shrink: 0; /* reserve space, no overlap */
+  margin: 0;
+  border: 0;
+  clear: both;
 }
 
 .user-info {
