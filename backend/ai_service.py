@@ -57,41 +57,43 @@ class AIService:
         if previous_scores is None:
             previous_scores = []
         
-        feedback_prompt = f"""You are an EXTREMELY strict prompt quality assessment AI. You MUST give low scores (1-3) for poor prompts. Analyze the user's latest message and the ENTIRE conversation context.
+        feedback_prompt = f"""You are an EXTREMELY strict prompt quality assessment AI. Take into account the entire conversation history you are given. You MUST give low scores (1-3) for poor conversations. Analyze the user's latest message and the ENTIRE conversation context when giving a score (e.g. if this prompt asks for elaboration, it is not necessarily a bad prompt if the reason for elaboration is based on a rich previous conversation. In the same way, one good prompt does not negate a bad conversation).
 
 CONVERSATION CONTEXT:
 - Total messages: {conversation_length}
-- User messages: {conversation_depth}
+- User messages: {messages}
 - Previous scores: {previous_scores}
 - This is message #{conversation_depth} in the conversation
 
-IMPORTANT: You MUST be harsh with scoring. Don't be generous. If a prompt shows no effort, specificity, or context, give it a 1/10. Most prompts should score 3-7, not 5-8.
+EXTREMELY IMPORTANT: If the request seems like a one-off factual question like "When does the whale bite off Captain Ahab's leg in Moby Dick," "who won the world cup in 2006," something that could be easily Googled, the prompt can score a 10. This is the most important rule. You cannot throttle fact-based questions. That is because the prompt is very direct and the user should be able to do quick fact lookups like that. Otherwise, use this rubric:
+
+IMPORTANT: You MUST be harsh with scoring. Don't be generous. If a prompt/conversation shows no effort, specificity, or context, give it a 1/10. Most prompts should score 3-7, not 5-8.
 
 SCORING CRITERIA (be EXTREMELY TOUGH and consider conversation history):
 1. SPECIFICITY (1-10): How specific and detailed is the request?
    - "summarize this" = 1/10 (too vague, no context)
    - "I don't know" = 1/10 (no specificity at all)
-   - "summarize the key findings from the research paper I shared about AI ethics" = 8/10
+   - "summarize the key findings around copyright infringement from the research paper I shared about AI ethics, with quotes" = 10/10
 
-2. CONTEXT AWARENESS (1-10): Does the prompt reference previous conversation?
+2. CONTEXT AWARENESS (1-10): Does the prompt build upon and learn from previous parts of the conversation?
    - Ignoring previous context = 1/10
    - "I don't know" = 1/10 (shows no context awareness)
    - Building on previous discussion = 8/10
 
 3. CRITICAL THINKING (1-10): Does the prompt show analysis or reasoning?
-   - Simple requests = 2/10
-   - "I don't know" = 1/10 (no thinking shown)
-   - Analytical questions = 8/10
+   - Simple requests that are not well thought through = 2/10
+   - Questions that are easy to answer in which AI is not much of a value add = 3/10
+   - Analytical questions = 10/10
 
-4. CLARITY (1-10): Is the request clear and well-structured?
-   - Confusing or ambiguous = 1/10
-   - "I don't know" = 1/10 (not a request at all)
-   - Clear and well-formed = 8/10
+4. CONCEPTUAL UNDERSTANDING (1-10): Does the user seem to know what they're talking about?
+   - Factual inaccuracies = 1/10
+   - The user clearly never having thought of this problem before = 2/10
+   - Demonstration of understanding coupled with clear asks of how AI can help = 10/10
 
-5. ENGAGEMENT (1-10): Does the prompt engage meaningfully with AI responses?
-   - Ignoring AI feedback = 1/10
-   - "I don't know" = 1/10 (no engagement)
-   - Building on AI responses = 8/10
+5. SELF-DIRECTION (1-10): Does the user demonstrate meaningful self-direction?
+   - The user seeming to want AI to do everything for them = 1/10
+   - Clear expectations for what the user wants the AI to do and what they will do with the AI's output = 10/10
+   - Entire conversation feels like working WITH the user, not FOR the user = 10/10
 
 FINAL SCORE CALCULATION:
 - Average the 5 criteria scores for this message
@@ -118,8 +120,10 @@ EXAMPLES OF HIGH SCORES:
 
 Provide:
 1. A numerical score (1-10) - be strict!
-2. Specific, actionable feedback on how to improve their prompting
+2. Specific, actionable feedback on how to improve their prompting, especially in the areas where they are most lacking.
 3. Reference conversation history in your feedback
+4. Be really specific and provide examples of better kinds of prompts. 
+5. Keep feedback under 200 words, structure it so it's easy to digest, and don't use bold or special characters.
 
 Format your response as JSON:
 {{
@@ -160,7 +164,8 @@ Format your response as JSON:
                 if previous_scores and len(previous_scores) > 0:
                     previous_average = sum(previous_scores) / len(previous_scores)
                     # Weighted average: 40% current, 60% previous
-                    rolling_average = (current_message_score * 0.4) + (previous_average * 0.6)
+                    # rolling_average = (current_message_score * 0.4) + (previous_average * 0.6)
+                    rolling_average = current_message_score
                 else:
                     # First message - no previous scores, use raw score
                     rolling_average = current_message_score
