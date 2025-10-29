@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { LogOut, User } from "lucide-react";
 import "./UserHeader.css";
 
 const UserHeader = () => {
-  const { user, logout, getAccessTokenSilently } = useAuth0();
+  const { user, logout } = useAuth0();
+  const [imageError, setImageError] = useState(false);
 
   if (!user) return null;
 
@@ -12,11 +13,24 @@ const UserHeader = () => {
     logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  const showImage = user.picture && !imageError;
+
   return (
     <div className="user-header">
       <div className="user-info">
-        {user.picture ? (
-          <img src={user.picture} alt={user.name} className="user-avatar" />
+        {showImage ? (
+          <img
+            src={user.picture}
+            alt={user.name}
+            className="user-avatar"
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
+            onError={handleImageError}
+          />
         ) : (
           <div className="user-avatar-placeholder">
             <User size={20} />
