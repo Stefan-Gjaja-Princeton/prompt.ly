@@ -1,6 +1,7 @@
 import React from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import "./LoginPage.css";
+import logo from "../assets/promptly_logo.png";
 
 const LoginPage = () => {
   const { loginWithRedirect } = useAuth0();
@@ -13,8 +14,9 @@ const LoginPage = () => {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h1>Welcome to Prompt.ly</h1>
-          <p>Your AI-powered prompt assistant</p>
+          <img src={logo} alt="Prompt.ly" className="login-logo" />
+          <h1>Welcome to prompt.ly</h1>
+          <p>Prompt better, think better.</p>
         </div>
         <div className="login-content">
           <p>Sign in with your account to get started</p>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, AlertTriangle } from "lucide-react";
 import "./ChatWindow.css";
+import logo from "../assets/promptly_logo.png";
 
 const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
   const [inputMessage, setInputMessage] = useState("");
@@ -92,7 +93,7 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
       <div className="messages-container">
         {messages.length === 0 ? (
           <div className="empty-chat">
-            <Bot size={48} className="empty-icon" />
+            <img src={logo} alt="Prompt.ly" className="empty-logo" />
             <h3>Start a conversation</h3>
             <p>
               Ask me anything! I'll provide helpful responses and feedback on

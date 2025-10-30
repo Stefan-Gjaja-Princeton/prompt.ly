@@ -3,7 +3,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(210deg, #fefbec 0%, #e36e28 100%);
   color: white;
   height: 60px;
   width: 100%;
@@ -59,10 +59,10 @@
 
 .logout-button {
   background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(100, 100, 100, 0.45);
   border-radius: 6px;
   padding: 6px 10px;
-  color: white;
+  color: gray;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
