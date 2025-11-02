@@ -12,11 +12,25 @@ app = Flask(__name__)
 
 # Configure CORS based on environment
 if Config.ENVIRONMENT == 'production':
-    # Production: allow only the frontend URL
-    CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
+    # Production: allow only the frontend URL with explicit CORS settings
+    # Some browsers require explicit allowed methods and headers
+    CORS(
+        app, 
+        origins=[Config.FRONTEND_URL], 
+        supports_credentials=True,
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allow_headers=['Content-Type', 'Authorization'],
+        expose_headers=['Content-Type'],
+        max_age=3600
+    )
 else:
     # Development: allow all origins
-    CORS(app)
+    CORS(
+        app,
+        supports_credentials=True,
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allow_headers=['Content-Type', 'Authorization']
+    )
 
 # Initialize services
 db = Database()

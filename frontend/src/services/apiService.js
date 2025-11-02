@@ -3,6 +3,11 @@ import axios from "axios";
 const API_BASE_URL =
   process.env.REACT_APP_API_URL || "http://localhost:5001/api";
 
+// Log API URL in production to help debug (only in browser console)
+if (process.env.NODE_ENV === "production") {
+  console.log("API Base URL:", API_BASE_URL);
+}
+
 // Create API service factory that accepts token getter
 export const createApiService = (getAccessTokenSilently) => {
   const api = axios.create({
@@ -10,6 +15,7 @@ export const createApiService = (getAccessTokenSilently) => {
     headers: {
       "Content-Type": "application/json",
     },
+    timeout: 60000, // 60 second timeout for API calls
   });
 
   // Add interceptor to include auth token
@@ -22,10 +28,37 @@ export const createApiService = (getAccessTokenSilently) => {
         }
       } catch (error) {
         console.error("Error getting token:", error);
+        // Don't block the request, but log the error
       }
       return config;
     },
     (error) => {
+      console.error("Request interceptor error:", error);
+      return Promise.reject(error);
+    }
+  );
+
+  // Add response interceptor to log errors
+  api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.code === "ECONNABORTED") {
+        console.error("Request timeout - backend may be slow or unreachable");
+      } else if (error.message === "Network Error") {
+        console.error("Network Error - Check REACT_APP_API_URL:", API_BASE_URL);
+        console.error(
+          "Is backend running? Try:",
+          API_BASE_URL.replace("/api", "/api/health")
+        );
+      } else if (error.response) {
+        console.error(
+          "API Error Response:",
+          error.response.status,
+          error.response.data
+        );
+      } else {
+        console.error("API Error:", error.message);
+      }
       return Promise.reject(error);
     }
   );
