@@ -64,17 +64,18 @@
   padding: 6px 10px;
   color: gray;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, filter 0.2s ease;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .logout-button:hover {
-  background: rgba(255, 255, 255, 0.26);
-  transform: translateY(-1px);
+  background: rgba(200, 200, 200, 0.3);
+  filter: brightness(0.85);
 }
 
 .logout-button:active {
-  transform: translateY(0);
+  background: rgba(150, 150, 150, 0.4);
+  filter: brightness(0.75);
 }
