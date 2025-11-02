@@ -6,9 +6,17 @@ from ai_service import AIService
 from auth_service import require_auth
 import uuid
 from datetime import datetime
+import os
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS based on environment
+if Config.ENVIRONMENT == 'production':
+    # Production: allow only the frontend URL
+    CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
+else:
+    # Development: allow all origins
+    CORS(app)
 
 # Initialize services
 db = Database()
@@ -267,5 +275,8 @@ def update_conversation_title(conversation_id):
 
 if __name__ == '__main__':
     print("Starting Prompt.ly backend server...")
+    print(f"Environment: {Config.ENVIRONMENT}")
+    print(f"Debug mode: {Config.DEBUG}")
     
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    port = int(os.getenv('PORT', 5001))
+    app.run(debug=Config.DEBUG, host='0.0.0.0', port=port)

@@ -154,7 +154,8 @@ Provide:
 2. Specific, actionable feedback on how to improve their prompting, especially in the areas where they are most lacking.
 3. Reference conversation history in your feedback
 4. Be really specific and provide examples of better kinds of prompts. 
-5. Keep feedback under 200 words, structure it so it's easy to digest, and don't use bold or special characters.
+5. Keep feedback under 200 words, structure it so it's easy to digest, and use "you" to refer to the user rather than third person.
+
 
 Format your response as JSON:
 {{

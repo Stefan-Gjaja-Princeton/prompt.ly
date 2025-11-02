@@ -204,7 +204,7 @@
 }
 
 .ai-message .message-text {
-  background: linear-gradient(210deg, #ffba4c 0%, #e36e28 100%);
+  background: linear-gradient(210deg, #e36d28a7 0%, #e36e28 100%);
   color: #fefbec;
   border-bottom-left-radius: 4px;
 }

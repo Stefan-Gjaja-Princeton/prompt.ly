@@ -12,7 +12,11 @@ except ImportError:
 class Config:
     # Use environment variable first, then file, then None
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or API_KEY_FROM_FILE
-    DATABASE_URL = 'sqlite:///promptly.db'
+    
+    # Database URL - Render provides DATABASE_URL for PostgreSQL
+    # For local dev, use SQLite if DATABASE_URL is not set
+    DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///promptly.db')
+    
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     
     # ANCHOR: Add your Auth0 configuration
@@ -20,3 +24,10 @@ class Config:
     AUTH0_API_AUDIENCE = os.getenv('AUTH0_API_AUDIENCE', '')
     AUTH0_ALGORITHMS = os.getenv('AUTH0_ALGORITHMS', 'RS256')
     AUTH0_ISSUER = f"https://{os.getenv('AUTH0_DOMAIN', '')}/" if os.getenv('AUTH0_DOMAIN') else ''
+    
+    # Production settings
+    ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
+    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+    
+    # CORS settings - allow frontend URL in production
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')

@@ -1,16 +1,116 @@
-import sqlite3
+import os
 import json
 from datetime import datetime
 from typing import List, Dict, Optional
+from config import Config
+
+# Determine which database to use based on DATABASE_URL
+DATABASE_URL = os.getenv('DATABASE_URL') or Config.DATABASE_URL
+
+# PostgreSQL support (Render may use postgres:// or postgresql://)
+USE_POSTGRES = DATABASE_URL and (DATABASE_URL.startswith('postgresql://') or DATABASE_URL.startswith('postgres://'))
+
+if USE_POSTGRES:
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        import psycopg2.pool
+        print("Using PostgreSQL database")
+    except ImportError:
+        print("WARNING: psycopg2 not installed. Install with: pip install psycopg2-binary")
+        USE_POSTGRES = False
+
+# SQLite fallback
+if not USE_POSTGRES:
+    import sqlite3
+    print("Using SQLite database")
 
 class Database:
     def __init__(self, db_path: str = "promptly.db"):
+        self.use_postgres = USE_POSTGRES
         self.db_path = db_path
-        self.clear_locks()
+        self.database_url = DATABASE_URL
+        
+        if self.use_postgres:
+            self._init_postgres()
+        else:
+            self.clear_locks()
+        
         self.init_database()
     
+    def _init_postgres(self):
+        """Initialize PostgreSQL connection pool"""
+        try:
+            # Parse DATABASE_URL and create connection
+            # Render provides DATABASE_URL like: postgresql://user:pass@host:port/dbname
+            self.conn_pool = None  # We'll use direct connections for simplicity
+            print(f"PostgreSQL database URL configured")
+        except Exception as e:
+            print(f"Error initializing PostgreSQL: {e}")
+            self.use_postgres = False
+    
+    def _get_connection(self):
+        """Get database connection (PostgreSQL or SQLite)"""
+        if self.use_postgres:
+            import psycopg2
+            
+            # psycopg2.connect can handle both postgres:// and postgresql:// URLs directly
+            conn = psycopg2.connect(
+                self.database_url,
+                connect_timeout=10
+            )
+            conn.autocommit = False
+            return conn
+        else:
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
+            return conn
+    
+    def _execute_query(self, query: str, params: tuple = None, fetch_one: bool = False, fetch_all: bool = False):
+        """Execute a query and return results"""
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # Convert SQLite-style ? placeholders to PostgreSQL %s if needed
+            if self.use_postgres and '?' in query:
+                query = query.replace('?', '%s')
+            
+            if params:
+                cursor.execute(query, params)
+            else:
+                cursor.execute(query)
+            
+            if fetch_one:
+                result = cursor.fetchone()
+                if self.use_postgres and result:
+                    # Convert tuple to list for consistency
+                    result = list(result)
+                return result
+            elif fetch_all:
+                results = cursor.fetchall()
+                if self.use_postgres:
+                    # Convert tuples to lists
+                    results = [list(r) for r in results]
+                return results
+            
+            conn.commit()
+            return None
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            print(f"Error executing query: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+    
     def clear_locks(self):
-        """Clear any existing database locks"""
+        """Clear any existing database locks (SQLite only)"""
+        if self.use_postgres:
+            return
+        
         try:
             import os
             wal_file = f"{self.db_path}-wal"
@@ -27,49 +127,90 @@ class Database:
         """Initialize the database with required tables"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn = self._get_connection()
             cursor = conn.cursor()
             
-            # Create users table (email-based auth)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    email TEXT PRIMARY KEY,
-                    first_name TEXT,
-                    last_name TEXT,
-                    google_id TEXT,
-                    profile_picture_url TEXT,
-                    conversation_ids TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Create conversations table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS conversations (
-                    conversation_id TEXT PRIMARY KEY,
-                    user_email TEXT,
-                    messages TEXT,
-                    current_quality_score REAL DEFAULT NULL,
-                    current_feedback TEXT DEFAULT NULL,
-                    message_scores TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_email) REFERENCES users (email)
-                )
-            ''')
+            if self.use_postgres:
+                # PostgreSQL table creation
+                # Create users table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        email VARCHAR(255) PRIMARY KEY,
+                        first_name VARCHAR(255),
+                        last_name VARCHAR(255),
+                        google_id VARCHAR(255),
+                        profile_picture_url TEXT,
+                        conversation_ids TEXT DEFAULT '[]',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Create conversations table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        conversation_id VARCHAR(255) PRIMARY KEY,
+                        user_email VARCHAR(255),
+                        messages TEXT,
+                        current_quality_score REAL DEFAULT NULL,
+                        current_feedback TEXT DEFAULT NULL,
+                        message_scores TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_email) REFERENCES users (email) ON DELETE CASCADE
+                    )
+                ''')
+            else:
+                # SQLite table creation (original)
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        email TEXT PRIMARY KEY,
+                        first_name TEXT,
+                        last_name TEXT,
+                        google_id TEXT,
+                        profile_picture_url TEXT,
+                        conversation_ids TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        conversation_id TEXT PRIMARY KEY,
+                        user_email TEXT,
+                        messages TEXT,
+                        current_quality_score REAL DEFAULT NULL,
+                        current_feedback TEXT DEFAULT NULL,
+                        message_scores TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_email) REFERENCES users (email)
+                    )
+                ''')
             
             # Add current_feedback column if it doesn't exist (for existing databases)
-            try:
-                cursor.execute('ALTER TABLE conversations ADD COLUMN current_feedback TEXT DEFAULT NULL')
-            except sqlite3.OperationalError:
-                # Column already exists, ignore
-                pass
+            if self.use_postgres:
+                # PostgreSQL: Check if column exists
+                cursor.execute('''
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='conversations' AND column_name='current_feedback'
+                ''')
+                if not cursor.fetchone():
+                    cursor.execute('ALTER TABLE conversations ADD COLUMN current_feedback TEXT DEFAULT NULL')
+            else:
+                # SQLite: Try to add column (will fail silently if exists)
+                try:
+                    cursor.execute('ALTER TABLE conversations ADD COLUMN current_feedback TEXT DEFAULT NULL')
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
             
             conn.commit()
         except Exception as e:
             print(f"Error initializing database: {e}")
+            if conn:
+                conn.rollback()
         finally:
             if conn:
                 conn.close()
@@ -78,19 +219,26 @@ class Database:
         """Create a new user (idempotent for existing users)"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute(
-                "INSERT OR IGNORE INTO users (email, first_name, last_name, google_id, profile_picture_url, conversation_ids) VALUES (?, ?, ?, ?, ?, ?)",
-                (email, first_name, last_name, google_id, profile_picture_url, json.dumps([]))
-            )
+            
+            if self.use_postgres:
+                cursor.execute(
+                    "INSERT INTO users (email, first_name, last_name, google_id, profile_picture_url, conversation_ids) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (email) DO NOTHING",
+                    (email, first_name, last_name, google_id, profile_picture_url, json.dumps([]))
+                )
+            else:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO users (email, first_name, last_name, google_id, profile_picture_url, conversation_ids) VALUES (?, ?, ?, ?, ?, ?)",
+                    (email, first_name, last_name, google_id, profile_picture_url, json.dumps([]))
+                )
+            
             conn.commit()
             return True
-        except sqlite3.IntegrityError:
-            return False
         except Exception as e:
             print(f"Error creating user: {e}")
+            if conn:
+                conn.rollback()
             return False
         finally:
             if conn:
@@ -100,24 +248,32 @@ class Database:
         """Fetch a user record by email"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT email, first_name, last_name, google_id, profile_picture_url, created_at, last_login FROM users WHERE email = ?",
-                (email,)
-            )
+            
+            if self.use_postgres:
+                cursor.execute(
+                    "SELECT email, first_name, last_name, google_id, profile_picture_url, created_at, last_login FROM users WHERE email = %s",
+                    (email,)
+                )
+            else:
+                cursor.execute(
+                    "SELECT email, first_name, last_name, google_id, profile_picture_url, created_at, last_login FROM users WHERE email = ?",
+                    (email,)
+                )
+            
             row = cursor.fetchone()
             if not row:
                 return None
+            
             return {
                 'email': row[0],
                 'first_name': row[1],
                 'last_name': row[2],
                 'google_id': row[3],
                 'profile_picture_url': row[4],
-                'created_at': row[5],
-                'last_login': row[6],
+                'created_at': str(row[5]) if row[5] else None,
+                'last_login': str(row[6]) if row[6] else None,
             }
         except Exception as e:
             print(f"Error getting user by email: {e}")
@@ -130,13 +286,19 @@ class Database:
         """Update last_login when a user signs in"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE email = ?", (email,))
+            
+            if self.use_postgres:
+                cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE email = %s", (email,))
+            else:
+                cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE email = ?", (email,))
+            
             conn.commit()
         except Exception as e:
             print(f"Error updating user last_login: {e}")
+            if conn:
+                conn.rollback()
         finally:
             if conn:
                 conn.close()
@@ -145,13 +307,17 @@ class Database:
         """Get all conversation IDs for a user"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT conversation_ids FROM users WHERE email = ?", (email,))
+            
+            if self.use_postgres:
+                cursor.execute("SELECT conversation_ids FROM users WHERE email = %s", (email,))
+            else:
+                cursor.execute("SELECT conversation_ids FROM users WHERE email = ?", (email,))
+            
             result = cursor.fetchone()
             
-            if result:
+            if result and result[0]:
                 return json.loads(result[0])
             return []
         except Exception as e:
@@ -165,29 +331,49 @@ class Database:
         """Create a new conversation"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")  # Enable WAL mode for better concurrency
+            conn = self._get_connection()
             cursor = conn.cursor()
             
             # Start transaction
-            cursor.execute("BEGIN TRANSACTION")
+            if self.use_postgres:
+                cursor.execute("BEGIN")
+            else:
+                cursor.execute("BEGIN TRANSACTION")
             
             # Create conversation
-            cursor.execute(
-                "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (?, ?, ?)",
-                (conversation_id, email, json.dumps([]))
-            )
+            if self.use_postgres:
+                cursor.execute(
+                    "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (%s, %s, %s)",
+                    (conversation_id, email, json.dumps([]))
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (?, ?, ?)",
+                    (conversation_id, email, json.dumps([]))
+                )
             
             # Update user's conversation list
             conversations = self.get_user_conversations(email)
             conversations.append(conversation_id)
-            cursor.execute(
-                "UPDATE users SET conversation_ids = ? WHERE email = ?",
-                (json.dumps(conversations), email)
-            )
+            
+            if self.use_postgres:
+                cursor.execute(
+                    "UPDATE users SET conversation_ids = %s WHERE email = %s",
+                    (json.dumps(conversations), email)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE users SET conversation_ids = ? WHERE email = ?",
+                    (json.dumps(conversations), email)
+                )
             
             # Commit transaction
-            cursor.execute("COMMIT")
+            if self.use_postgres:
+                cursor.execute("COMMIT")
+            else:
+                cursor.execute("COMMIT")
+            
+            conn.commit()
             return True
         except Exception as e:
             if conn:
@@ -202,13 +388,20 @@ class Database:
         """Get conversation data"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT user_email, messages, current_quality_score, current_feedback, message_scores FROM conversations WHERE conversation_id = ?",
-                (conversation_id,)
-            )
+            
+            if self.use_postgres:
+                cursor.execute(
+                    "SELECT user_email, messages, current_quality_score, current_feedback, message_scores FROM conversations WHERE conversation_id = %s",
+                    (conversation_id,)
+                )
+            else:
+                cursor.execute(
+                    "SELECT user_email, messages, current_quality_score, current_feedback, message_scores FROM conversations WHERE conversation_id = ?",
+                    (conversation_id,)
+                )
+            
             result = cursor.fetchone()
             
             if result:
@@ -238,20 +431,28 @@ class Database:
         """Update conversation with new messages, quality score, and feedback"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn = self._get_connection()
             cursor = conn.cursor()
             
             # Handle message scores
             scores_json = json.dumps(message_scores) if message_scores else None
             
-            cursor.execute(
-                "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
-                (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
-            )
+            if self.use_postgres:
+                cursor.execute(
+                    "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                    (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                    (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
+                )
+            
             conn.commit()
         except Exception as e:
             print(f"Error updating conversation: {e}")
+            if conn:
+                conn.rollback()
         finally:
             if conn:
                 conn.close()
@@ -260,13 +461,20 @@ class Database:
         """Get conversation summary for the sidebar"""
         conn = None
         try:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT user_email, messages, created_at, updated_at FROM conversations WHERE conversation_id = ?",
-                (conversation_id,)
-            )
+            
+            if self.use_postgres:
+                cursor.execute(
+                    "SELECT user_email, messages, created_at, updated_at FROM conversations WHERE conversation_id = %s",
+                    (conversation_id,)
+                )
+            else:
+                cursor.execute(
+                    "SELECT user_email, messages, created_at, updated_at FROM conversations WHERE conversation_id = ?",
+                    (conversation_id,)
+                )
+            
             result = cursor.fetchone()
             
             if result:
@@ -276,8 +484,8 @@ class Database:
                     'conversation_id': conversation_id,
                     'user_email': result[0],
                     'title': first_message[:50] + "..." if len(first_message) > 50 else first_message,
-                    'created_at': result[2],
-                    'updated_at': result[3],
+                    'created_at': str(result[2]) if result[2] else None,
+                    'updated_at': str(result[3]) if result[3] else None,
                     'message_count': len(messages)
                 }
             return None
