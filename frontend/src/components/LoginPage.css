@@ -55,7 +55,7 @@
   gap: 12px;
   width: 100%;
   padding: 14px 24px;
-  background: linear-gradient(210deg, #c18bff 0%, #be45ff 100%);
+  background-color: #e36e28;
   border: none;
   border-radius: 8px;
   font-size: 16px;
@@ -66,12 +66,7 @@
 }
 
 .login-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.login-button:active {
-  transform: translateY(0);
+  background: #c95f22;
 }
 
 .auth-icon {
