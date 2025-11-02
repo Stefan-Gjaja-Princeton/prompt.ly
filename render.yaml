@@ -4,7 +4,6 @@ services:
   - type: web
     name: promptly-backend
     env: python
-    plan: starter
     buildCommand: pip install -r backend/requirements.txt
     startCommand: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     healthCheckPath: /api/health
@@ -36,7 +35,6 @@ services:
   - type: web
     name: promptly-frontend
     env: static
-    plan: starter
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/build
     envVars:
