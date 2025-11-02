@@ -157,9 +157,9 @@ def send_message(conversation_id):
         # Get feedback and score FIRST (before AI response)
         rolling_average_score, feedback, current_message_score = ai_service.get_feedback_response(messages, previous_scores)
         
-        # Update conversation with new messages and rolling average score FIRST
+        # Update conversation with new messages, rolling average score, and feedback FIRST
         new_message_scores = previous_scores + [current_message_score]
-        db.update_conversation(conversation_id, messages, rolling_average_score, new_message_scores)
+        db.update_conversation(conversation_id, messages, rolling_average_score, new_message_scores, feedback)
         
         # Return feedback immediately (before AI response)
         return jsonify({
@@ -231,8 +231,9 @@ def get_ai_response(conversation_id):
             "timestamp": datetime.now().isoformat()
         })
         
-        # Update conversation with AI response
-        db.update_conversation(conversation_id, messages, current_quality_score, conversation.get('message_scores', []))
+        # Update conversation with AI response (preserve existing feedback)
+        existing_feedback = conversation.get('feedback')
+        db.update_conversation(conversation_id, messages, current_quality_score, conversation.get('message_scores', []), existing_feedback)
         
         return jsonify({
             "ai_response": ai_response,

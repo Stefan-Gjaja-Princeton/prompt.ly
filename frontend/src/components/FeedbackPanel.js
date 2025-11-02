@@ -7,6 +7,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import "./FeedbackPanel.css";
+import { renderMarkdown } from "../utils/markdown";
 
 const FeedbackPanel = ({
   qualityScore,
@@ -143,8 +144,10 @@ const FeedbackPanel = ({
           <div className="feedback-text">
             {qualityScore === null
               ? "Send your first message to get personalized feedback on your prompting style!"
-              : feedback ||
-                "Send a message to get personalized feedback on your prompting style."}
+              : renderMarkdown(
+                  feedback ||
+                    "Send a message to get personalized feedback on your prompting style."
+                )}
           </div>
         </div>
 

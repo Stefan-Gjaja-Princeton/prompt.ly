@@ -225,6 +225,53 @@
   border: 1px solid #e0e0e0;
 }
 
+.feedback-text p {
+  margin: 0.5em 0;
+}
+
+.feedback-text p:first-child {
+  margin-top: 0;
+}
+
+.feedback-text p:last-child {
+  margin-bottom: 0;
+}
+
+.feedback-text .markdown-list {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+  list-style-position: outside;
+}
+
+.feedback-text .markdown-list:first-child {
+  margin-top: 0;
+}
+
+.feedback-text .markdown-list:last-child {
+  margin-bottom: 0;
+}
+
+.feedback-text .markdown-list li {
+  margin: 0.25em 0;
+  line-height: 1.5;
+}
+
+.feedback-text .markdown-list ul {
+  margin: 0.25em 0;
+  padding-left: 1.5em;
+  list-style-type: disc;
+}
+
+.feedback-text .markdown-list ol {
+  margin: 0.25em 0;
+  padding-left: 1.5em;
+  list-style-type: decimal;
+}
+
+.feedback-text strong {
+  font-weight: 600;
+}
+
 .tips-section {
   background-color: #f8f9fa;
   border-radius: 12px;

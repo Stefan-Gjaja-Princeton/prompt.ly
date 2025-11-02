@@ -35,6 +35,7 @@ function App() {
   // Use refs to store latest callbacks without triggering re-renders
   const loadConversationsRef = useRef();
   const loadConversationRef = useRef();
+  const isSendingMessageRef = useRef(false); // Track if we're currently sending a message
 
   // Stable callback that doesn't depend on apiService directly
   const loadConversations = useCallback(async () => {
@@ -56,6 +57,7 @@ function App() {
         const data = await apiService.getConversation(conversationId);
         setMessages(data.messages || []);
         setQualityScore(data.quality_score);
+        setFeedback(data.feedback || ""); // Load feedback from conversation
         setIsTerse(data.quality_score !== null && data.quality_score <= 5.0);
       } catch (error) {
         console.error("Error loading conversation:", error);
@@ -78,8 +80,13 @@ function App() {
   }, [isAuthenticated]);
 
   // Load conversation when currentConversationId changes
+  // But don't load if we're currently sending a message (to preserve user message)
   useEffect(() => {
-    if (currentConversationId && loadConversationRef.current) {
+    if (
+      currentConversationId &&
+      loadConversationRef.current &&
+      !isSendingMessageRef.current
+    ) {
       loadConversationRef.current(currentConversationId);
     }
   }, [currentConversationId]);
@@ -111,24 +118,42 @@ function App() {
   };
 
   const sendMessage = async (message) => {
-    // Ensure we have a conversation to send into; create one if needed
-    let activeConversationId = currentConversationId;
-    if (!activeConversationId) {
-      try {
-        activeConversationId = await createNewConversation();
-      } catch (e) {
-        alert(`Error creating conversation: ${e.message || e}`);
-        return;
-      }
-    }
+    // Mark that we're sending a message to prevent loadConversation from clearing messages
+    isSendingMessageRef.current = true;
 
-    // Add user message immediately to the chat
+    // Add user message immediately to the chat FIRST (before any async operations)
     const userMessage = {
       role: "user",
       content: message,
       timestamp: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMessage]);
+
+    // Ensure we have a conversation to send into; create one if needed
+    let activeConversationId = currentConversationId;
+    if (!activeConversationId) {
+      try {
+        // Create conversation but don't clear messages - preserve the user message we just added
+        const data = await apiService.createConversation();
+        activeConversationId = data.conversation_id;
+        const newConversation = {
+          conversation_id: data.conversation_id,
+          title: "New Conversation",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          message_count: 0,
+        };
+        setConversations((prev) => [newConversation, ...prev]);
+        setCurrentConversationId(data.conversation_id);
+        // Don't clear messages here - we already added the user message above
+      } catch (e) {
+        alert(`Error creating conversation: ${e.message || e}`);
+        // Remove the user message if conversation creation failed
+        setMessages((prev) => prev.filter((msg) => msg !== userMessage));
+        isSendingMessageRef.current = false;
+        return;
+      }
+    }
 
     setLoading(true);
     setFeedbackLoading(true);
@@ -166,6 +191,9 @@ function App() {
       if (isAuthenticated) {
         loadConversations();
       }
+
+      // Message sending is complete, allow loadConversation to run again
+      isSendingMessageRef.current = false;
     } catch (error) {
       console.error("Error sending message:", error);
 
@@ -205,6 +233,8 @@ function App() {
 
       // Remove the user message if there was an error
       setMessages((prev) => prev.filter((msg) => msg !== userMessage));
+      // Allow loadConversation to run again even on error
+      isSendingMessageRef.current = false;
     } finally {
       setLoading(false);
       setFeedbackLoading(false);
@@ -216,7 +246,13 @@ function App() {
   };
 
   if (isLoading) {
-    return <div className="app">Loading...</div>;
+    return (
+      <div className="app app-loading">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+        </div>
+      </div>
+    );
   }
 
   if (!isAuthenticated) {

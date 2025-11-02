@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, AlertTriangle } from "lucide-react";
 import "./ChatWindow.css";
 import logo from "../assets/promptly_logo.png";
+import { renderMarkdown } from "../utils/markdown";
 
 const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
   const [inputMessage, setInputMessage] = useState("");
@@ -116,7 +117,9 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
                 )}
               </div>
               <div className="message-content">
-                <div className="message-text">{message.content}</div>
+                <div className="message-text">
+                  {renderMarkdown(message.content)}
+                </div>
                 <div className="message-time">
                   {formatTime(message.timestamp)}
                 </div>

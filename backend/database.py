@@ -52,12 +52,20 @@ class Database:
                     user_email TEXT,
                     messages TEXT,
                     current_quality_score REAL DEFAULT NULL,
+                    current_feedback TEXT DEFAULT NULL,
                     message_scores TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_email) REFERENCES users (email)
                 )
             ''')
+            
+            # Add current_feedback column if it doesn't exist (for existing databases)
+            try:
+                cursor.execute('ALTER TABLE conversations ADD COLUMN current_feedback TEXT DEFAULT NULL')
+            except sqlite3.OperationalError:
+                # Column already exists, ignore
+                pass
             
             conn.commit()
         except Exception as e:
@@ -198,16 +206,16 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT user_email, messages, current_quality_score, message_scores FROM conversations WHERE conversation_id = ?",
+                "SELECT user_email, messages, current_quality_score, current_feedback, message_scores FROM conversations WHERE conversation_id = ?",
                 (conversation_id,)
             )
             result = cursor.fetchone()
             
             if result:
                 message_scores = []
-                if result[3]:
+                if len(result) > 4 and result[4]:
                     try:
-                        message_scores = json.loads(result[3])
+                        message_scores = json.loads(result[4])
                     except json.JSONDecodeError:
                         message_scores = []
                 
@@ -215,6 +223,7 @@ class Database:
                     'user_email': result[0],
                     'messages': json.loads(result[1]),
                     'quality_score': result[2] if result[2] is not None else None,
+                    'feedback': result[3] if len(result) > 3 and result[3] else None,
                     'message_scores': message_scores
                 }
             return None
@@ -225,8 +234,8 @@ class Database:
             if conn:
                 conn.close()
     
-    def update_conversation(self, conversation_id: str, messages: List[Dict], quality_score: float, message_scores: List[float] = None):
-        """Update conversation with new messages and quality score"""
+    def update_conversation(self, conversation_id: str, messages: List[Dict], quality_score: float, message_scores: List[float] = None, feedback: str = None):
+        """Update conversation with new messages, quality score, and feedback"""
         conn = None
         try:
             conn = sqlite3.connect(self.db_path, timeout=30.0)
@@ -237,8 +246,8 @@ class Database:
             scores_json = json.dumps(message_scores) if message_scores else None
             
             cursor.execute(
-                "UPDATE conversations SET messages = ?, current_quality_score = ?, message_scores = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
-                (json.dumps(messages), quality_score, scores_json, conversation_id)
+                "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
             )
             conn.commit()
         except Exception as e:

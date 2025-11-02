@@ -14,51 +14,50 @@
 
 .login-card {
   background: white;
-  border-radius: 16px;
-  padding: 48px;
+  border-radius: 19px;
+  padding: 58px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  max-width: 450px;
+  max-width: 540px;
   width: 100%;
   text-align: center;
 }
 
 .login-header h1 {
-  margin: 0 0 8px 0;
+  margin: 0 0 10px 0;
   color: #333;
-  font-size: 32px;
+  font-size: 38px;
   font-weight: 700;
 }
 
 .login-logo {
-  width: 72px;
-  height: 72px;
+  width: 86px;
+  height: 86px;
   object-fit: contain;
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
 .login-header p {
-  margin: 0 0 32px 0;
+  margin: 0 0 38px 0;
   color: #666;
-  font-size: 16px;
+  font-size: 19px;
 }
 
 .login-content p {
-  margin: 0 0 24px 0;
+  margin: 0 0 29px 0;
   color: #555;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .login-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
   width: 100%;
-  padding: 14px 24px;
+  padding: 17px 29px;
   background-color: #e36e28;
   border: none;
-  border-radius: 8px;
-  font-size: 16px;
+  border-radius: 10px;
+  font-size: 19px;
   font-weight: 500;
   color: white;
   cursor: pointer;
@@ -69,7 +68,29 @@
   background: #c95f22;
 }
 
+.button-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  animation: textPulse 2s ease-in-out infinite;
+}
+
+.button-text {
+  display: inline-block;
+}
+
+@keyframes textPulse {
+  0%,
+  100% {
+    transform: scale(0.95);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
 .auth-icon {
-  width: 24px;
-  height: 24px;
+  width: 29px;
+  height: 29px;
 }
