@@ -72,8 +72,25 @@ export const createApiService = (getAccessTokenSilently) => {
 
     // Create a new conversation
     createConversation: async () => {
-      const response = await api.post("/conversations");
-      return response.data;
+      try {
+        const response = await api.post("/conversations");
+        return response.data;
+      } catch (error) {
+        // Log detailed error info for debugging
+        console.error("createConversation error:", {
+          message: error.message,
+          code: error.code,
+          response: error.response?.data,
+          status: error.response?.status,
+          request: error.request,
+          config: {
+            url: error.config?.url,
+            baseURL: error.config?.baseURL,
+            method: error.config?.method,
+          },
+        });
+        throw error;
+      }
     },
 
     // Get a specific conversation

@@ -147,7 +147,41 @@ function App() {
         setCurrentConversationId(data.conversation_id);
         // Don't clear messages here - we already added the user message above
       } catch (e) {
-        alert(`Error creating conversation: ${e.message || e}`);
+        // Better error message extraction
+        let errorMessage = "Failed to create conversation. ";
+
+        if (e.response) {
+          // Server responded with error
+          const status = e.response.status;
+          const data = e.response.data;
+
+          if (status === 401) {
+            errorMessage +=
+              "Authentication failed. Please try logging out and back in.";
+          } else if (status === 500) {
+            errorMessage +=
+              "Server error occurred. Please check if the backend is running.";
+          } else if (data?.error) {
+            errorMessage += data.error;
+          } else {
+            errorMessage += `Server returned error ${status}`;
+          }
+        } else if (e.request) {
+          // Request made but no response - network error
+          errorMessage += "Network error - unable to reach the server. ";
+          errorMessage += "Please check:\n";
+          errorMessage += "1. Is the backend service running?\n";
+          errorMessage +=
+            "2. Check the browser console (F12) for more details.\n";
+          errorMessage += `3. Verify REACT_APP_API_URL is set correctly.`;
+        } else {
+          // Other error
+          errorMessage += e.message || String(e);
+        }
+
+        console.error("Error creating conversation:", e);
+        alert(errorMessage);
+
         // Remove the user message if conversation creation failed
         setMessages((prev) => prev.filter((msg) => msg !== userMessage));
         isSendingMessageRef.current = false;
