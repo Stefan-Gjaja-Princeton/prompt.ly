@@ -24,7 +24,7 @@
 }
 
 .new-conversation-btn {
-  background: #007bff;
+  background: #e36e28;
   color: white;
   border: none;
   border-radius: 8px;
@@ -37,7 +37,7 @@
 }
 
 .new-conversation-btn:hover {
-  background: #0056b3;
+  background: #c95f22;
 }
 
 .conversation-items {
@@ -68,7 +68,7 @@
 }
 
 .start-conversation-btn {
-  background: #007bff;
+  background: #e36e28;
   color: white;
   border: none;
   border-radius: 6px;
@@ -79,7 +79,7 @@
 }
 
 .start-conversation-btn:hover {
-  background: #0056b3;
+  background: #c95f22;
 }
 
 .conversation-item {

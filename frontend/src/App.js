@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import "./App.css";
 import ConversationList from "./components/ConversationList";
@@ -20,37 +20,47 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
 
-  // Load conversations on app start
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  // Load conversation when currentConversationId changes
-  useEffect(() => {
-    if (currentConversationId) {
-      loadConversation(currentConversationId);
-    }
-  }, [currentConversationId]);
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
       const data = await apiService.getConversations();
       setConversations(data);
     } catch (error) {
       console.error("Error loading conversations:", error);
     }
-  };
+  }, [apiService]);
 
-  const loadConversation = async (conversationId) => {
-    try {
-      const data = await apiService.getConversation(conversationId);
-      setMessages(data.messages || []);
-      setQualityScore(data.quality_score);
-      setIsTerse(data.quality_score !== null && data.quality_score <= 5.0);
-    } catch (error) {
-      console.error("Error loading conversation:", error);
+  const loadConversation = useCallback(
+    async (conversationId) => {
+      try {
+        const data = await apiService.getConversation(conversationId);
+        setMessages(data.messages || []);
+        setQualityScore(data.quality_score);
+        setIsTerse(data.quality_score !== null && data.quality_score <= 5.0);
+      } catch (error) {
+        console.error("Error loading conversation:", error);
+      }
+    },
+    [apiService]
+  );
+
+  // Load conversations on app start (component mount)
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  // Ensure conversations load as soon as the user is authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadConversations();
     }
-  };
+  }, [isAuthenticated, loadConversations]);
+
+  // Load conversation when currentConversationId changes
+  useEffect(() => {
+    if (currentConversationId) {
+      loadConversation(currentConversationId);
+    }
+  }, [currentConversationId, loadConversation]);
 
   const createNewConversation = async () => {
     try {
@@ -63,21 +73,30 @@ function App() {
         message_count: 0,
       };
 
-      setConversations([newConversation, ...conversations]);
+      setConversations((prev) => [newConversation, ...prev]);
       setCurrentConversationId(data.conversation_id);
       setMessages([]);
       setQualityScore(null);
       setFeedback("");
       setIsTerse(false);
+
+      return data.conversation_id;
     } catch (error) {
       console.error("Error creating conversation:", error);
+      throw error;
     }
   };
 
   const sendMessage = async (message) => {
-    if (!currentConversationId) {
-      await createNewConversation();
-      return;
+    // Ensure we have a conversation to send into; create one if needed
+    let activeConversationId = currentConversationId;
+    if (!activeConversationId) {
+      try {
+        activeConversationId = await createNewConversation();
+      } catch (e) {
+        alert(`Error creating conversation: ${e.message || e}`);
+        return;
+      }
     }
 
     // Add user message immediately to the chat
@@ -93,7 +112,7 @@ function App() {
     try {
       // Step 1: Get feedback and score immediately
       const feedbackResponse = await apiService.sendMessage(
-        currentConversationId,
+        activeConversationId,
         message
       );
 
@@ -111,7 +130,7 @@ function App() {
       setFeedbackLoading(false);
 
       // Step 2: Get AI response after feedback is ready
-      const aiResponse = await apiService.getAIResponse(currentConversationId);
+      const aiResponse = await apiService.getAIResponse(activeConversationId);
 
       console.log("DEBUG: AI Response:", aiResponse);
 
