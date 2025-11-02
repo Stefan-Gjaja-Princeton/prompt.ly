@@ -42,8 +42,13 @@ def get_user_profile():
         
         if not existing_user:
             # Create new user from Auth0 data
-            first_name = user_data.get('name', [''])[0] if isinstance(user_data.get('name'), list) else ''
-            last_name = user_data.get('name', ['', ''])[1] if isinstance(user_data.get('name'), list) and len(user_data.get('name', [])) > 1 else ''
+            name = user_data.get('name', [])
+            if isinstance(name, list) and len(name) > 0:
+                first_name = name[0]
+                last_name = name[1] if len(name) > 1 else ''
+            else:
+                first_name = user_data.get('nickname', '') or user_data.get('email', '').split('@')[0] if user_data.get('email') else ''
+                last_name = ''
             
             db.create_user(
                 email=email,
@@ -175,20 +180,49 @@ def get_ai_response(conversation_id):
         # Get current conversation
         conversation = db.get_conversation(conversation_id)
         if not conversation:
+            print(f"ERROR: Conversation {conversation_id} not found")
             return jsonify({"error": "Conversation not found"}), 404
         
-        messages = conversation['messages']
-        current_quality_score = conversation['quality_score'] or 5.0
+        messages = conversation.get('messages', [])
+        if not messages:
+            print(f"ERROR: No messages in conversation {conversation_id}")
+            return jsonify({"error": "No messages in conversation"}), 400
+        
+        current_quality_score = conversation.get('quality_score') or 5.0
         
         # Get user's first name for personalization
         user_data = request.current_user
-        first_name = user_data.get('name', [''])[0] if isinstance(user_data.get('name'), list) else user_data.get('nickname', '')
+        name = user_data.get('name', [])
+        if isinstance(name, list) and len(name) > 0:
+            first_name = name[0]
+        else:
+            first_name = user_data.get('nickname', '') or user_data.get('email', '').split('@')[0] if user_data.get('email') else ''
+        
+        print(f"DEBUG: Getting AI response for conversation {conversation_id}")
+        print(f"DEBUG: Messages count: {len(messages)}")
+        print(f"DEBUG: Quality score: {current_quality_score}")
+        print(f"DEBUG: User name: {first_name}")
+        print(f"DEBUG: Last message: {messages[-1] if messages else 'None'}")
         
         # Get AI response using the current score
         try:
             ai_response = ai_service.get_chat_response(messages, current_quality_score, user_name=first_name)
+            
+            if not ai_response:
+                raise ValueError("AI response is empty")
+            
+            print(f"DEBUG: AI response received: {ai_response[:100]}...")
         except Exception as ai_error:
-            return jsonify({"error": f"Failed to generate AI response: {str(ai_error)}"}), 500
+            error_msg = str(ai_error)
+            print(f"ERROR: Failed to generate AI response: {error_msg}")
+            import traceback
+            traceback_str = traceback.format_exc()
+            print(f"ERROR: Traceback: {traceback_str}")
+            return jsonify({
+                "error": "Failed to generate AI response",
+                "details": error_msg,
+                "type": type(ai_error).__name__
+            }), 500
         
         # Add AI response to messages
         messages.append({
@@ -206,7 +240,14 @@ def get_ai_response(conversation_id):
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e)
+        print(f"ERROR: Unexpected error in get_ai_response: {error_msg}")
+        import traceback
+        print(f"ERROR: Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "error": "Server error occurred",
+            "details": error_msg
+        }), 500
 
 @app.route('/api/conversations/<conversation_id>/title', methods=['PUT'])
 @require_auth

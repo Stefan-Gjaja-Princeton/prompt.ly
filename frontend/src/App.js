@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import "./App.css";
 import ConversationList from "./components/ConversationList";
@@ -10,7 +16,13 @@ import { createApiService } from "./services/apiService";
 
 function App() {
   const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
-  const apiService = createApiService(getAccessTokenSilently);
+
+  // Memoize apiService to prevent recreation on every render
+  const apiService = useMemo(
+    () => createApiService(getAccessTokenSilently),
+    [getAccessTokenSilently]
+  );
+
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -20,17 +32,26 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
 
+  // Use refs to store latest callbacks without triggering re-renders
+  const loadConversationsRef = useRef();
+  const loadConversationRef = useRef();
+
+  // Stable callback that doesn't depend on apiService directly
   const loadConversations = useCallback(async () => {
+    if (!isAuthenticated) return;
     try {
       const data = await apiService.getConversations();
       setConversations(data);
     } catch (error) {
       console.error("Error loading conversations:", error);
     }
-  }, [apiService]);
+  }, [isAuthenticated, apiService]);
+
+  loadConversationsRef.current = loadConversations;
 
   const loadConversation = useCallback(
     async (conversationId) => {
+      if (!conversationId) return;
       try {
         const data = await apiService.getConversation(conversationId);
         setMessages(data.messages || []);
@@ -43,24 +64,25 @@ function App() {
     [apiService]
   );
 
-  // Load conversations on app start (component mount)
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+  loadConversationRef.current = loadConversation;
 
-  // Ensure conversations load as soon as the user is authenticated
+  // Track if we've loaded conversations initially
+  const hasLoadedConversations = useRef(false);
+
+  // Load conversations only once when authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      loadConversations();
+    if (isAuthenticated && !hasLoadedConversations.current) {
+      hasLoadedConversations.current = true;
+      loadConversationsRef.current();
     }
-  }, [isAuthenticated, loadConversations]);
+  }, [isAuthenticated]);
 
   // Load conversation when currentConversationId changes
   useEffect(() => {
-    if (currentConversationId) {
-      loadConversation(currentConversationId);
+    if (currentConversationId && loadConversationRef.current) {
+      loadConversationRef.current(currentConversationId);
     }
-  }, [currentConversationId, loadConversation]);
+  }, [currentConversationId]);
 
   const createNewConversation = async () => {
     try {
@@ -73,6 +95,7 @@ function App() {
         message_count: 0,
       };
 
+      // Update conversations without triggering a reload
       setConversations((prev) => [newConversation, ...prev]);
       setCurrentConversationId(data.conversation_id);
       setMessages([]);
@@ -137,16 +160,54 @@ function App() {
       // Update with the complete message history including AI response
       setMessages(aiResponse.messages);
 
-      // Update conversations list
-      loadConversations();
+      // Update conversations list only when needed (after message is sent)
+      // This updates the conversation title and message count
+      // Only reload if needed to update the conversation metadata
+      if (isAuthenticated) {
+        loadConversations();
+      }
     } catch (error) {
       console.error("Error sending message:", error);
+
+      // Handle different error types
+      let errorMessage = "Failed to send message. ";
+      if (error.response) {
+        // Server responded with error
+        const status = error.response.status;
+        const data = error.response.data;
+
+        if (status === 401) {
+          errorMessage +=
+            "Authentication failed. Please try logging out and back in.";
+        } else if (status === 429) {
+          errorMessage +=
+            "Too many requests. Please wait a moment and try again.";
+        } else if (status === 500) {
+          errorMessage += "Server error occurred. Please try again.";
+        } else if (data?.error) {
+          errorMessage += data.error;
+        } else {
+          errorMessage += `Error ${status}: ${
+            error.message || "Unknown error"
+          }`;
+        }
+      } else if (error.request) {
+        // Request made but no response
+        errorMessage +=
+          "No response from server. Please check your connection.";
+      } else {
+        // Other error
+        errorMessage += error.message || "Unknown error occurred.";
+      }
+
       // Show error message to user
-      alert(`Error sending message: ${error.message || error}`);
+      alert(errorMessage);
+
       // Remove the user message if there was an error
       setMessages((prev) => prev.filter((msg) => msg !== userMessage));
     } finally {
       setLoading(false);
+      setFeedbackLoading(false);
     }
   };
 

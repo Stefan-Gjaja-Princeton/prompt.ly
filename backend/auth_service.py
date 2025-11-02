@@ -70,46 +70,89 @@ class AuthService:
     def get_user_from_token(self, authorization_header: str) -> Optional[Dict]:
         """Extract user info from Authorization header"""
         if not authorization_header or not authorization_header.startswith('Bearer '):
+            print("ERROR: No Authorization header or invalid format")
             return None
         
         token = authorization_header.replace('Bearer ', '')
         payload = self.verify_token(token)
         
-        if payload:
-            # Log the payload to see what we're getting
-            print(f"DEBUG: Auth0 payload: {payload}")
-            # If email is not present in token, fetch from /userinfo
-            email = payload.get('email') or payload.get('https://promptly.app/email')
-            name = payload.get('name')
-            picture = payload.get('picture')
-            nickname = payload.get('nickname')
-
-            if not email:
-                try:
-                    userinfo_url = f"https://{self.domain}/userinfo"
-                    auth_header = authorization_header.replace('Bearer ', '')
-                    headers = { 'Authorization': f'Bearer {auth_header}' }
-                    resp = requests.get(userinfo_url, headers=headers)
-                    if resp.status_code == 200:
-                        ui = resp.json()
-                        email = ui.get('email') or email
-                        name = ui.get('name') or name
-                        picture = ui.get('picture') or picture
-                        nickname = ui.get('nickname') or nickname
-                    else:
-                        print(f"WARNING: /userinfo call failed: {resp.status_code} {resp.text}")
-                except Exception as ex:
-                    print(f"WARNING: failed to fetch /userinfo: {ex}")
-
-            return {
-                'email': email,
-                'sub': payload.get('sub'),
-                'name': name.split() if isinstance(name, str) and name else [],
-                'picture': picture,
-                'nickname': nickname
-            }
+        if not payload:
+            print("ERROR: Token verification failed")
+            return None
         
-        return None
+        # Try to extract email from various possible locations in the token
+        # Auth0 typically includes email in the 'email' claim when scope includes 'email'
+        email = payload.get('email')
+        
+        # If email not found in standard location, try alternative locations
+        if not email:
+            email = (
+                payload.get('https://promptly.app/email') or
+                # Check for email in custom namespace claims
+                (payload.get('https://promptly.app/user_metadata', {}).get('email') if isinstance(payload.get('https://promptly.app/user_metadata'), dict) else None)
+            )
+        
+        name = payload.get('name')
+        picture = payload.get('picture')
+        nickname = payload.get('nickname')
+        
+        # Only call /userinfo as a last resort if email is missing
+        # This should be rare if Auth0 is configured correctly
+        if not email:
+            try:
+                userinfo_url = f"https://{self.domain}/userinfo"
+                headers = {'Authorization': authorization_header}
+                resp = requests.get(userinfo_url, headers=headers, timeout=5)
+                
+                if resp.status_code == 200:
+                    ui = resp.json()
+                    email = ui.get('email') or email
+                    name = ui.get('name') or name
+                    picture = ui.get('picture') or picture
+                    nickname = ui.get('nickname') or nickname
+                elif resp.status_code == 429:
+                    # Rate limit - cannot proceed without email
+                    print(f"ERROR: Auth0 rate limit hit. Cannot get user email. Sub: {payload.get('sub')}")
+                    print("ERROR: Please configure Auth0 to include email in access tokens to avoid this issue.")
+                    if not email:
+                        # Return None to fail authentication gracefully
+                        return None
+                else:
+                    print(f"WARNING: /userinfo call failed: {resp.status_code} {resp.text}")
+                    if not email:
+                        # Cannot proceed without email for database
+                        print(f"ERROR: Cannot get user email from token or /userinfo. Sub: {payload.get('sub')}")
+                        return None
+            except requests.exceptions.RequestException as ex:
+                print(f"WARNING: failed to fetch /userinfo: {ex}")
+                if not email:
+                    # Cannot proceed without email
+                    print(f"ERROR: Cannot get user email. Sub: {payload.get('sub')}")
+                    return None
+        
+        # Email is required for database operations
+        if not email or '@' not in str(email):
+            print(f"ERROR: Invalid or missing email in token.")
+            print(f"ERROR: Sub: {payload.get('sub')}")
+            print(f"ERROR: Available claims: {list(payload.keys())}")
+            
+            if 'email' in payload:
+                email_value = payload['email']
+                print(f"ERROR: Email key exists but value is invalid: {email_value}")
+                print(f"ERROR: Check Auth0 action configuration and logs.")
+            else:
+                print(f"ERROR: Email claim not found in token.")
+                print(f"ERROR: Make sure Auth0 action is configured correctly and you've logged in after setting it up.")
+            
+            return None
+
+        return {
+            'email': email,
+            'sub': payload.get('sub'),
+            'name': name.split() if isinstance(name, str) and name else [],
+            'picture': picture,
+            'nickname': nickname
+        }
 
 # Global auth service instance
 auth_service = AuthService()
@@ -119,10 +162,19 @@ def require_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
+        
+        if not auth_header:
+            print("ERROR: No Authorization header in request")
+            return jsonify({"error": "Authentication required. No token provided."}), 401
+        
         user_data = auth_service.get_user_from_token(auth_header)
         
         if not user_data:
-            return jsonify({"error": "Authentication required"}), 401
+            print(f"ERROR: Authentication failed for endpoint: {request.endpoint}")
+            return jsonify({
+                "error": "Authentication failed",
+                "details": "Token validation failed or email not found in token. If you just set up the Auth0 action, please log out and log back in."
+            }), 401
         
         # Add user data to request context
         request.current_user = user_data

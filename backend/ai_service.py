@@ -33,17 +33,48 @@ class AIService:
             max_tokens = 1000
         
         try:
+            # Ensure messages are properly formatted
+            # Filter out any messages that aren't 'user' or 'assistant' role
+            # Remove timestamp fields which OpenAI doesn't accept
+            formatted_messages = [{"role": "system", "content": system_prompt}]
+            for msg in messages:
+                if isinstance(msg, dict) and 'role' in msg and 'content' in msg:
+                    role = msg['role']
+                    # Only include user and assistant messages (skip system)
+                    if role in ['user', 'assistant']:
+                        formatted_messages.append({
+                            "role": role,
+                            "content": str(msg['content'])
+                        })
+            
+            if len(formatted_messages) <= 1:  # Only system message
+                raise ValueError("No user or assistant messages found in conversation")
+            
+            print(f"DEBUG: Sending {len(formatted_messages)} messages to OpenAI (1 system + {len(formatted_messages)-1} conversation)")
+            print(f"DEBUG: Model: {self.model}, Max tokens: {max_tokens}")
+            print(f"DEBUG: Last user message: {formatted_messages[-1] if formatted_messages else 'None'}")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt}
-                ] + messages,
+                messages=formatted_messages,
                 max_tokens=max_tokens,
                 temperature=0.7
             )
-            return response.choices[0].message.content
+            
+            if not response.choices or not response.choices[0].message:
+                raise ValueError("Empty response from OpenAI")
+            
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty content in OpenAI response")
+            
+            return content
         except Exception as e:
-            return f"Error generating response: {str(e)}"
+            print(f"ERROR: OpenAI API error: {str(e)}")
+            import traceback
+            print(f"ERROR: Traceback: {traceback.format_exc()}")
+            # Re-raise instead of returning error string so we can see the actual error
+            raise
     
     def get_feedback_response(self, messages: List[Dict], previous_scores: List[float] = None) -> Tuple[float, str]:
         """Get feedback and quality score for the conversation"""

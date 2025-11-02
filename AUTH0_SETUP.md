@@ -64,6 +64,35 @@ Note down these values from the **Settings** tab:
 
 Note down the **Identifier** value (e.g., `https://promptly-api`)
 
+### Important: Configure API to Include Email in Token
+
+To avoid rate limiting errors, you need to ensure email is included in the access token.
+
+**Recommended Method: Create a Login Action**
+
+See `AUTH0_ACTION_SETUP.md` for detailed step-by-step instructions on creating a Login action that adds email to tokens.
+
+**Quick Steps:**
+
+1. Go to **Actions** → **Flows** → **Login**
+2. Click **"+"** or **"Create Custom"** to create a new action
+3. Name it: `Add Email to Token`
+4. Set trigger to: **Login / Post Login**
+5. Paste this code:
+   ```javascript
+   exports.onExecutePostLogin = async (event, api) => {
+     if (event.authorization && event.user.email) {
+       api.idToken.setCustomClaim("email", event.user.email);
+       api.accessToken.setCustomClaim("email", event.user.email);
+     }
+   };
+   ```
+6. Click **Deploy**
+7. Add the action to your Login flow
+8. Click **Apply**
+
+**Why this matters**: Without email in the token, the backend will call Auth0's `/userinfo` endpoint on every request, which quickly hits rate limits (429 errors). Including email in the token avoids these calls entirely.
+
 ## Step 4: Configure Backend Environment
 
 1. Copy the example environment file:
