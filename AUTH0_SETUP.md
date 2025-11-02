@@ -22,20 +22,28 @@ In your application settings, find the following sections and add:
 
 ### Allowed Callback URLs
 
+Add both your local development URL and production URL:
+
 ```
-http://localhost:3000
+http://localhost:3000,https://promptly-frontend-dcbp.onrender.com
 ```
+
+**Note**: Replace `https://promptly-frontend-dcbp.onrender.com` with your actual production URL.
 
 ### Allowed Logout URLs
 
+Add both URLs:
+
 ```
-http://localhost:3000
+http://localhost:3000,https://promptly-frontend-dcbp.onrender.com
 ```
 
 ### Allowed Web Origins
 
+Add both URLs:
+
 ```
-http://localhost:3000
+http://localhost:3000,https://promptly-frontend-dcbp.onrender.com
 ```
 
 Click **Save Changes** at the bottom of the page.

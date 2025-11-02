@@ -8,8 +8,8 @@ import App from "./App";
 const domain = process.env.REACT_APP_AUTH0_DOMAIN;
 const clientId = process.env.REACT_APP_AUTH0_CLIENT_ID;
 const audience = process.env.REACT_APP_AUTH0_AUDIENCE;
-const redirectUri =
-  process.env.REACT_APP_AUTH0_REDIRECT_URI || window.location.origin;
+// Use current origin for redirect - works for both localhost and production
+const redirectUri = window.location.origin;
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
