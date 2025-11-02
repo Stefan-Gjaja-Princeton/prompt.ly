@@ -91,6 +91,7 @@
   max-width: 80%;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  align-items: flex-end;
 }
 
 .user-message {

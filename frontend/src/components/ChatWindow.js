@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, AlertTriangle } from "lucide-react";
+import { Send, User, AlertTriangle } from "lucide-react";
 import "./ChatWindow.css";
 import logo from "../assets/promptly_logo.png";
 import { renderMarkdown } from "../utils/markdown";
+import PromptlyMascot from "./icons/IconMascot";
 
 const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
   const [inputMessage, setInputMessage] = useState("");
@@ -80,8 +81,8 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
     <div className="chat-window">
       <div className="chat-header">
         <div className="chat-title">
-          <Bot size={20} />
-          <h2>AI Assistant</h2>
+          <PromptlyMascot size={30} />
+          <h2>prompt.ly</h2>
         </div>
         {isTerse && (
           <div className="terse-warning">
@@ -111,9 +112,9 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
             >
               <div className="message-avatar">
                 {message.role === "user" ? (
-                  <User size={16} />
+                  <User size={24} />
                 ) : (
-                  <Bot size={16} />
+                  <PromptlyMascot size={24} />
                 )}
               </div>
               <div className="message-content">
@@ -130,7 +131,7 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
         {loading && (
           <div className="message ai-message">
             <div className="message-avatar">
-              <Bot size={16} />
+              <PromptlyMascot size={24} />
             </div>
             <div className="message-content">
               <div className="typing-indicator">
