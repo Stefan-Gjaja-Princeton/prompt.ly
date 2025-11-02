@@ -15,7 +15,20 @@ This guide will help you deploy Prompt.ly to Render, including the PostgreSQL da
 
 This is the easiest method - Render will automatically detect and configure everything from the `render.yaml` file.
 
-1. **Push your code to Git**
+**IMPORTANT:** You need to create the PostgreSQL database manually first, then use the blueprint for the web services.
+
+1. **Create PostgreSQL Database First**
+
+   - Go to [Render Dashboard](https://dashboard.render.com)
+   - Click "New +" → "PostgreSQL"
+   - Configure:
+     - **Name**: `promptly-database`
+     - **Database**: `promptly` (or leave default)
+     - **Plan**: Starter (Free tier available)
+   - Click "Create Database"
+   - **Save the Internal Database URL** - you'll need this for the backend
+
+2. **Push your code to Git**
 
    ```bash
    git add .
@@ -23,34 +36,42 @@ This is the easiest method - Render will automatically detect and configure ever
    git push origin main
    ```
 
-2. **Create a New Blueprint on Render**
+3. **Create a New Blueprint on Render**
 
    - Go to [Render Dashboard](https://dashboard.render.com)
    - Click "New +" → "Blueprint"
    - Connect your Git repository
-   - Render will automatically detect `render.yaml` and configure all services
+   - Render will automatically detect `render.yaml` and configure web services
 
-3. **Set Environment Variables**
+4. **Set Environment Variables**
    Render will prompt you to set these environment variables. You'll need:
 
    **For Backend:**
 
+   - `DATABASE_URL` - Paste the **Internal Database URL** from your PostgreSQL service (starts with `postgresql://`)
    - `OPENAI_API_KEY` - Your OpenAI API key
    - `AUTH0_DOMAIN` - Your Auth0 domain (e.g., `dev-pdecvsnuz3rv2bef.us.auth0.com`)
    - `AUTH0_API_AUDIENCE` - Your Auth0 API audience (e.g., `https://promptly-api`)
-   - `FRONTEND_URL` - Your frontend URL (e.g., `https://promptly-frontend.onrender.com`)
+   - `FRONTEND_URL` - Your frontend URL (e.g., `https://promptly-frontend.onrender.com`) - Set this after frontend deploys
    - `SECRET_KEY` - Will be auto-generated, but you can set a custom one
 
    **For Frontend:**
 
    - `REACT_APP_API_URL` - Your backend URL (e.g., `https://promptly-backend.onrender.com/api`)
 
-4. **Deploy**
+5. **Deploy**
 
    - Click "Apply" to create all services
    - Wait for deployment to complete (5-10 minutes for first deploy)
 
-5. **Update Auth0 Settings**
+6. **Update FRONTEND_URL in Backend**
+
+   - After frontend is deployed, go to your backend service
+   - Navigate to "Environment"
+   - Update `FRONTEND_URL` to your actual frontend URL
+   - Click "Save Changes" - this will trigger a redeploy
+
+7. **Update Auth0 Settings**
    - Once deployed, update your Auth0 application settings:
      - **Allowed Callback URLs**: Add your frontend URL + callback path (e.g., `https://promptly-frontend.onrender.com/callback`)
      - **Allowed Logout URLs**: Add your frontend URL (e.g., `https://promptly-frontend.onrender.com`)

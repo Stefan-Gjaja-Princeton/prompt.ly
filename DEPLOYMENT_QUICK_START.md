@@ -2,7 +2,15 @@
 
 ## First-Time Setup
 
-1. **Push code to Git:**
+1. **Create PostgreSQL Database First:**
+
+   - Go to https://dashboard.render.com
+   - Click "New +" → "PostgreSQL"
+   - Name: `promptly-database`
+   - Plan: Starter (free tier)
+   - **Copy the Internal Database URL** - you'll need this!
+
+2. **Push code to Git:**
 
    ```bash
    git add .
@@ -10,17 +18,18 @@
    git push origin main
    ```
 
-2. **Deploy on Render:**
+3. **Deploy on Render:**
 
    - Go to https://dashboard.render.com
    - Click "New +" → "Blueprint"
    - Connect your Git repo
-   - Render will auto-detect `render.yaml` and set up everything
+   - Render will auto-detect `render.yaml` and set up web services
 
-3. **Set Environment Variables in Render Dashboard:**
+4. **Set Environment Variables in Render Dashboard:**
 
    **Backend Service:**
 
+   - `DATABASE_URL` = Paste the Internal Database URL from step 1
    - `OPENAI_API_KEY` = Your OpenAI key
    - `AUTH0_DOMAIN` = Your Auth0 domain
    - `AUTH0_API_AUDIENCE` = Your Auth0 API audience
@@ -30,7 +39,7 @@
 
    - `REACT_APP_API_URL` = Your backend URL (e.g., `https://promptly-backend.onrender.com/api`)
 
-4. **Update Auth0 Settings:**
+5. **Update Auth0 Settings:**
    - Add your Render URLs to allowed callback/logout/origins
 
 ## Making Changes (Automatic Deployment)
@@ -55,7 +64,7 @@ Render will automatically:
 
 ### Backend (`promptly-backend`)
 
-- `DATABASE_URL` - Auto-set by Render (from PostgreSQL service)
+- `DATABASE_URL` - Set manually (Internal Database URL from PostgreSQL service)
 - `OPENAI_API_KEY` - Your OpenAI API key
 - `AUTH0_DOMAIN` - Your Auth0 domain
 - `AUTH0_API_AUDIENCE` - Your Auth0 API audience
@@ -83,8 +92,9 @@ Render will automatically:
 
 **Database issues?**
 
-- Check that `DATABASE_URL` is set (auto-set by Render)
+- Check that `DATABASE_URL` is set (must be set manually - use Internal Database URL from PostgreSQL service)
 - Tables are created automatically on first run
+- Make sure you're using the **Internal Database URL** (not external)
 
 ## Full Documentation
 

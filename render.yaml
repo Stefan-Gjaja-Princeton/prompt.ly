@@ -1,12 +1,6 @@
 services:
-  # PostgreSQL Database
-  - type: pspg
-    name: promptly-database
-    plan: starter
-    databaseName: promptly
-    user: promptly_user
-
   # Backend API (Flask)
+  # Note: Create PostgreSQL database manually first, then set DATABASE_URL in backend env vars
   - type: web
     name: promptly-backend
     env: python
@@ -16,9 +10,9 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: promptly-database
-          property: connectionString
+        sync: false
+        # Set this manually after creating PostgreSQL database
+        # Copy the "Internal Database URL" from your PostgreSQL service
       - key: ENVIRONMENT
         value: production
       - key: DEBUG
