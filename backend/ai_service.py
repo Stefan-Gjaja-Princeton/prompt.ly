@@ -106,28 +106,23 @@ SCORING CRITERIA (be EXTREMELY TOUGH and consider conversation history):
    - "I don't know" = 1/10 (no specificity at all)
    - "summarize the key findings around copyright infringement from the research paper I shared about AI ethics, with quotes" = 10/10
 
-2. CONTEXT AWARENESS (1-10): Does the prompt build upon and learn from previous parts of the conversation?
-   - Ignoring previous context = 1/10
-   - "I don't know" = 1/10 (shows no context awareness)
-   - Building on previous discussion = 8/10
-
-3. CRITICAL THINKING (1-10): Does the prompt show analysis or reasoning?
+2. CRITICAL THINKING (1-10): Does the prompt show analysis or reasoning?
    - Simple requests that are not well thought through = 2/10
    - Questions that are easy to answer in which AI is not much of a value add = 3/10
    - Analytical questions = 10/10
 
-4. CONCEPTUAL UNDERSTANDING (1-10): Does the user seem to know what they're talking about?
+3. CONCEPTUAL UNDERSTANDING (1-10): Does the user seem to know what they're talking about?
    - Factual inaccuracies = 1/10
    - The user clearly never having thought of this problem before = 2/10
    - Demonstration of understanding coupled with clear asks of how AI can help = 10/10
 
-5. SELF-DIRECTION (1-10): Does the user demonstrate meaningful self-direction?
+4. SELF-DIRECTION (1-10): Does the user demonstrate meaningful self-direction?
    - The user seeming to want AI to do everything for them = 1/10
    - Clear expectations for what the user wants the AI to do and what they will do with the AI's output = 10/10
    - Entire conversation feels like working WITH the user, not FOR the user = 10/10
 
 FINAL SCORE CALCULATION:
-- Average the 5 criteria scores for this message
+- Average the 4 criteria scores for this message
 - This will be combined with previous scores for a rolling average
 - Cap at 10.0 maximum
 - Round to 1 decimal place

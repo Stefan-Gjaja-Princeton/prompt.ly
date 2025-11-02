@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 import { Send, User, AlertTriangle } from "lucide-react";
 import "./ChatWindow.css";
 import logo from "../assets/promptly_logo.png";
@@ -6,6 +7,8 @@ import { renderMarkdown } from "../utils/markdown";
 import PromptlyMascot from "./icons/IconMascot";
 
 const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
+  const { user } = useAuth0();
+  const [userImageError, setUserImageError] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -112,7 +115,20 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
             >
               <div className="message-avatar">
                 {message.role === "user" ? (
-                  <User size={24} />
+                  user?.picture && !userImageError ? (
+                    <img
+                      src={user.picture}
+                      alt={user.name || "User"}
+                      className="user-avatar-image"
+                      crossOrigin="anonymous"
+                      referrerPolicy="no-referrer"
+                      onError={() => setUserImageError(true)}
+                    />
+                  ) : (
+                    <div className="user-avatar-fallback">
+                      <User size={24} />
+                    </div>
+                  )
                 ) : (
                   <PromptlyMascot size={24} />
                 )}
