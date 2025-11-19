@@ -1,0 +1,1 @@
+IMPORTANT DISCLAIMER about package-lock.json and package.json: these specify the dependencies and the versions for the frontend of my application, and they are created by Cursor. json files don't allow comments so putting this here.
