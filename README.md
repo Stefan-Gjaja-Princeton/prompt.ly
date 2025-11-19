@@ -1,164 +1,35 @@
-# Prompt.ly v2
+# WELCOME!!
 
-A three-column AI chatbot webapp with real-time feedback and quality scoring.
+# This is prompt.ly. Prompt better, think better.
 
-## Features
+prompt.ly works just like a standard chatbot, but it provides tailored feedback on prompt depth and conceptual understanding too. It also makes its response terser if it detects poor prompt quality.
 
-- **Left Column**: Table of contents for past conversations
-- **Middle Column**: Main chat interface with AI chatbot
-- **Right Column**: Real-time feedback and quality scoring (1-10 scale)
-- **Adaptive Responses**: Chatbot becomes terser when user quality score drops below 3
-- **Database Integration**: SQLite database for storing users and conversations
+## Setup and Run Instructions
 
-## Quick Start
+** The Easy Way **
 
-### Option 1: Using Startup Scripts (Recommended)
+Just go to promptly-frontend-dcbp.onrender.com - all the work is done for you!
 
-1. **Set your OpenAI API key:**
+** The Harder Way **
 
-   ```bash
-   export OPENAI_API_KEY="your-api-key-here"
-   ```
+1. From the root of the directory, run: `bash pip install -r requirements.txt `
+2. Run: `bash npm install`
+3. In one terminal window, run: `bash ./start_backend.sh `
+4. In another terminal window, run: `bash ./start_frontend.sh `
+5. If your browser does not automatically open, navigate to http://localhost:3000
 
-2. **Start the backend:**
+## Usage Examples
 
-   ```bash
-   ./start_backend.sh
-   ```
+This product is designed for academic and business audiences.
 
-3. **In a new terminal, start the frontend:**
+** Academic **
 
-   ```bash
-   ./start_frontend.sh
-   ```
+Schools at all levels are under immense pressure with the surge of generative AI to both prepare students for an AI-first environment in the workplace and ensure that students are properly learning. prompt.ly allows students to make the most of Gen AI's powerful output while also keeping them honest to make sure they properly consdier the material they are asking about before seeking answers. Questions like "how do I answer this math problem?" will be answered with a response like "what do you think is an appropriate approach? Let's work together," and questions like "Summarize Moby Dick" will be answered with a response like "what aspects in particular? Are there particular themes or characters that you'd like to focus on?"
 
-4. **Open your browser to:** `http://localhost:3000`
+** Business **
 
-### Option 2: Manual Setup
+Businesses are also confronted with a dual-pronged challenge with GenAI - how can they allow their workers to make the most of AI's efficiency gains while maintaining important skills in senior employees and building necessary skills in junior employees? prompt.ly once again answers this question by providing deep critical thinkers with the answers they are looking for and steering less sophisticated prompters to think about how they can be more effective in their prompting.
 
-#### Prerequisites
+## Proof of Efficacy
 
-- Python 3.8+
-- Node.js 16+
-- OpenAI API Key
-
-#### Backend Setup
-
-1. Navigate to the backend directory:
-
-   ```bash
-   cd backend
-   ```
-
-2. Create and activate a virtual environment:
-
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install Python dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Set your OpenAI API key:
-
-   ```bash
-   export OPENAI_API_KEY="your-api-key-here"
-   ```
-
-   Or create a `.env` file in the backend directory with:
-
-   ```
-   OPENAI_API_KEY=your-api-key-here
-   ```
-
-5. Run the Flask server:
-   ```bash
-   python app.py
-   ```
-
-#### Frontend Setup
-
-1. Navigate to the frontend directory:
-
-   ```bash
-   cd frontend
-   ```
-
-2. Install Node.js dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Start the React development server:
-
-   ```bash
-   npm start
-   ```
-
-4. Open your browser to `http://localhost:3000`
-
-## Database
-
-The SQLite database will be automatically created when you first run the backend. It includes:
-
-- `users` table: stores user information and conversation IDs
-- `conversations` table: stores conversation history
-
-## Configuration
-
-- **OpenAI Model**: Currently set to GPT-4o, easily modifiable in `backend/ai_service.py`
-- **Quality Threshold**: Responses become terse when user score drops below 3
-- **Database**: SQLite (easily upgradeable to PostgreSQL/MySQL)
-
-## API Endpoints
-
-- `GET /api/health` - Health check
-- `GET /api/conversations` - Get all conversations for a user
-- `POST /api/conversations` - Create a new conversation
-- `POST /api/conversations/{id}/messages` - Send a message to a conversation
-- `GET /api/conversations/{id}` - Get conversation history
-
-## Project Structure
-
-```
-prompt.ly v2/
-├── backend/
-│   ├── app.py              # Flask application
-│   ├── ai_service.py       # OpenAI integration
-│   ├── database.py         # Database operations
-│   ├── config.py           # Configuration
-│   └── requirements.txt    # Python dependencies
-├── frontend/
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── services/       # API service
-│   │   └── App.js          # Main React app
-│   └── package.json        # Node.js dependencies
-├── start_backend.sh        # Backend startup script
-├── start_frontend.sh       # Frontend startup script
-└── README.md              # This file
-```
-
-## Troubleshooting
-
-### Backend Issues
-
-- Make sure your OpenAI API key is set correctly
-- Check that Python 3.8+ is installed
-- Ensure all dependencies are installed: `pip install -r requirements.txt`
-
-### Frontend Issues
-
-- Make sure Node.js 16+ is installed
-- Clear node_modules and reinstall: `rm -rf node_modules && npm install`
-- Check that the backend is running on port 5001
-
-### Database Issues
-
-- The SQLite database is created automatically
-- If you need to reset: delete `backend/promptly.db` and restart the backend
+In the next few weeks, I am running a study to determine if this tool is effective. The format of the study will mirror that of the May 2025 MIT Study that found that heavy LLM use is associated with cognitive decline. In the study, participants will be asked to complete a series of timed SAT-style essays with some form of assistance. This assistance will either be: nothing, Google, ChatGPT, or prompt.ly. Responses will then be independently evaluated for quality, and tests will be run to determine both recall/ownership of the work from the original authors and ability to do the task unassisted. The goal of this experiment is to see if prompt.ly helps test subjects generate high-quality output with stronger senses of ownership and ability to repeat the activity at a later date.
