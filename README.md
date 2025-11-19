@@ -6,11 +6,11 @@ prompt.ly works just like a standard chatbot, but it provides tailored feedback 
 
 ## Setup and Run Instructions
 
-** The Easy Way **
+**The Easy Way**
 
 Just go to promptly-frontend-dcbp.onrender.com - all the work is done for you!
 
-** The Harder Way **
+**The Harder Way**
 
 1. From the root of the directory, run: `bash pip install -r requirements.txt `
 2. Run: `bash npm install`
@@ -22,11 +22,11 @@ Just go to promptly-frontend-dcbp.onrender.com - all the work is done for you!
 
 This product is designed for academic and business audiences.
 
-** Academic **
+**Academic**
 
 Schools at all levels are under immense pressure with the surge of generative AI to both prepare students for an AI-first environment in the workplace and ensure that students are properly learning. prompt.ly allows students to make the most of Gen AI's powerful output while also keeping them honest to make sure they properly consdier the material they are asking about before seeking answers. Questions like "how do I answer this math problem?" will be answered with a response like "what do you think is an appropriate approach? Let's work together," and questions like "Summarize Moby Dick" will be answered with a response like "what aspects in particular? Are there particular themes or characters that you'd like to focus on?"
 
-** Business **
+**Business**
 
 Businesses are also confronted with a dual-pronged challenge with GenAI - how can they allow their workers to make the most of AI's efficiency gains while maintaining important skills in senior employees and building necessary skills in junior employees? prompt.ly once again answers this question by providing deep critical thinkers with the answers they are looking for and steering less sophisticated prompters to think about how they can be more effective in their prompting.
 
