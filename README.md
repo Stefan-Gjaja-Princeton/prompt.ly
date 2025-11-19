@@ -8,7 +8,7 @@ prompt.ly works just like a standard chatbot, but it provides tailored feedback 
 
 **The Easy Way**
 
-Just go to promptly-frontend-dcbp.onrender.com - all the work is done for you!
+Just go to https://promptly-frontend-dcbp.onrender.com/ - all the work is done for you! Bang.
 
 **The Harder Way**
 
