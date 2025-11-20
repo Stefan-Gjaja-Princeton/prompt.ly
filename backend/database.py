@@ -415,6 +415,7 @@ class Database:
                         message_scores = []
                 
                 return {
+                    'conversation_id': conversation_id,
                     'user_email': result[0],
                     'messages': json.loads(result[1]),
                     'quality_score': result[2] if result[2] is not None else None,

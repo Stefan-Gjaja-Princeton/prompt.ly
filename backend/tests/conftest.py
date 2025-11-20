@@ -1,0 +1,128 @@
+"""
+Pytest configuration and shared fixtures for all tests
+"""
+import pytest
+import os
+import tempfile
+import json
+from unittest.mock import Mock, patch
+from database import Database
+
+# Use test database
+TEST_DB_PATH = ":memory:"  # In-memory SQLite for tests
+
+@pytest.fixture
+def test_db(monkeypatch):
+    """Create a test database in memory"""
+    import sqlite3
+    import tempfile
+    import os
+    
+    # Use a temporary file instead of :memory: to ensure persistence across connections
+    # But delete it after tests
+    temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+    temp_db_path = temp_db.name
+    temp_db.close()
+    
+    try:
+        # Force SQLite for testing
+        monkeypatch.setenv('DATABASE_URL', '')
+        
+        # Patch USE_POSTGRES to False BEFORE creating Database
+        import database
+        monkeypatch.setattr(database, 'USE_POSTGRES', False)
+        monkeypatch.setattr(database, 'DATABASE_URL', '')
+        
+        # Create database instance - this should call init_database()
+        db = Database(db_path=temp_db_path)
+        
+        # Verify tables exist by trying to query them
+        conn = db._get_connection()
+        try:
+            cursor = conn.cursor()
+            # Try to query users table - if it fails, create tables
+            try:
+                cursor.execute("SELECT COUNT(*) FROM users")
+            except sqlite3.OperationalError:
+                # Tables don't exist, create them
+                cursor.execute('''
+                    CREATE TABLE users (
+                        email TEXT PRIMARY KEY,
+                        first_name TEXT,
+                        last_name TEXT,
+                        google_id TEXT,
+                        profile_picture_url TEXT,
+                        conversation_ids TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE conversations (
+                        conversation_id TEXT PRIMARY KEY,
+                        user_email TEXT,
+                        messages TEXT,
+                        current_quality_score REAL DEFAULT NULL,
+                        current_feedback TEXT DEFAULT NULL,
+                        message_scores TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_email) REFERENCES users (email) ON DELETE CASCADE
+                    )
+                ''')
+                conn.commit()
+        finally:
+            conn.close()
+        
+        yield db
+    finally:
+        # Cleanup: delete temporary database file
+        try:
+            if os.path.exists(temp_db_path):
+                os.unlink(temp_db_path)
+            # Also remove WAL and SHM files if they exist
+            if os.path.exists(temp_db_path + '-wal'):
+                os.unlink(temp_db_path + '-wal')
+            if os.path.exists(temp_db_path + '-shm'):
+                os.unlink(temp_db_path + '-shm')
+        except:
+            pass
+
+@pytest.fixture
+def sample_user_email():
+    """Sample user email for testing"""
+    return "test@example.com"
+
+@pytest.fixture
+def sample_conversation_id():
+    """Sample conversation ID for testing"""
+    return "test-conv-123"
+
+@pytest.fixture
+def sample_messages():
+    """Sample messages for testing"""
+    return [
+        {"role": "user", "content": "Hello, this is a test message", "timestamp": "2024-01-01T00:00:00"},
+        {"role": "assistant", "content": "This is a test response", "timestamp": "2024-01-01T00:00:01"}
+    ]
+
+@pytest.fixture
+def mock_openai_response():
+    """Mock OpenAI API response"""
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message = Mock()
+    mock_response.choices[0].message.content = '{"score": 7.5, "feedback": "Good prompt with specific details."}'
+    return mock_response
+
+@pytest.fixture
+def mock_auth0_token():
+    """Mock Auth0 JWT token payload"""
+    return {
+        "sub": "auth0|123456",
+        "email": "test@example.com",
+        "name": ["Test", "User"],
+        "nickname": "testuser",
+        "picture": "https://example.com/pic.jpg"
+    }
+

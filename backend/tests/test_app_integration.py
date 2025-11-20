@@ -1,0 +1,135 @@
+"""
+Integration tests for app.py API endpoints
+Tests full request/response cycle with mocked dependencies
+"""
+import pytest
+import json
+from unittest.mock import patch, MagicMock, Mock
+from flask import Flask
+from app import app
+
+class TestAppIntegration:
+    """Integration tests for Flask app endpoints"""
+    
+    @pytest.fixture
+    def client(self):
+        """Create test client"""
+        app.config['TESTING'] = True
+        with app.test_client() as client:
+            yield client
+    
+    def test_health_check(self, client):
+        """Test health check endpoint"""
+        response = client.get('/api/health')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'healthy'
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_get_user_profile(self, mock_auth_service, mock_db, client):
+        """Test getting user profile"""
+        # Mock get_user_from_token to return user data
+        mock_auth_service.get_user_from_token.return_value = {
+            "sub": "auth0|123",
+            "email": "test@example.com",
+            "name": ["Test", "User"],
+            "nickname": "testuser"
+        }
+        
+        mock_user = {
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User"
+        }
+        mock_db.get_user_by_email.return_value = mock_user
+        
+        # Add Authorization header
+        response = client.get('/api/user/profile', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 200
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_create_conversation(self, mock_auth_service, mock_db, client):
+        """Test creating a new conversation"""
+        # Mock get_user_from_token to return user data
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        
+        mock_db.create_user.return_value = True
+        mock_db.create_conversation.return_value = True
+        
+        response = client.post('/api/conversations', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert 'conversation_id' in data
+    
+    @patch('app.db')
+    @patch('app.ai_service')
+    @patch('auth_service.auth_service')
+    def test_send_message(self, mock_auth_service, mock_ai_service, mock_db, client):
+        """Test sending a message to a conversation"""
+        # Mock get_user_from_token to return user data
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        
+        # Mock conversation
+        mock_conversation = {
+            "conversation_id": "test-123",
+            "messages": [],
+            "quality_score": None,
+            "message_scores": []
+        }
+        mock_db.get_conversation.return_value = mock_conversation
+        mock_db.update_conversation.return_value = True
+        
+        # Mock AI service
+        mock_ai_service.get_feedback_response.return_value = (7.5, "Good prompt!", 7.5)
+        
+        response = client.post(
+            '/api/conversations/test-123/messages',
+            json={"message": "Hello"},
+            headers={'Authorization': 'Bearer test-token'}
+        )
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert 'feedback_ready' in data
+        assert 'quality_score' in data
+    
+    @patch('app.db')
+    @patch('app.ai_service')
+    @patch('auth_service.auth_service')
+    def test_get_ai_response(self, mock_auth_service, mock_ai_service, mock_db, client):
+        """Test getting AI response"""
+        # Mock get_user_from_token to return user data
+        mock_auth_service.get_user_from_token.return_value = {
+            "email": "test@example.com",
+            "name": ["Test"],
+            "nickname": "testuser"
+        }
+        
+        # Mock conversation with messages
+        mock_conversation = {
+            "conversation_id": "test-123",
+            "messages": [
+                {"role": "user", "content": "Hello", "timestamp": "2024-01-01T00:00:00"}
+            ],
+            "quality_score": 7.5,
+            "message_scores": [7.5]
+        }
+        mock_db.get_conversation.return_value = mock_conversation
+        mock_db.update_conversation.return_value = True
+        
+        # Mock AI service
+        mock_ai_service.get_chat_response.return_value = "This is an AI response."
+        
+        response = client.post('/api/conversations/test-123/response', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert 'ai_response' in data
+        assert data['ai_response'] == "This is an AI response."
+    
+    def test_get_conversations_requires_auth(self, client):
+        """Test that conversations endpoint requires authentication"""
+        # Without auth, should return 401
+        response = client.get('/api/conversations')
+        assert response.status_code == 401
+
