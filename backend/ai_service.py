@@ -78,7 +78,7 @@ class AIService:
             # Re-raise instead of returning error string so we can see the actual error
             raise
     
-    def get_feedback_response(self, messages: List[Dict], previous_scores: List[float] = None) -> Tuple[float, str]:
+    def get_feedback_response(self, messages: List[Dict], previous_scores: List[float] = None) -> Tuple[float, str, float]:
         """Get feedback and quality score for the conversation"""
         
         # Calculate conversation length and context
@@ -86,7 +86,7 @@ class AIService:
         user_messages = [msg for msg in messages if msg.get('role') == 'user']
         conversation_depth = len(user_messages)
         
-        # Use previous scores for rolling average, default to empty list
+        # Use previous scores for context, default to empty list
         if previous_scores is None:
             previous_scores = []
         
@@ -141,7 +141,6 @@ SCORING CRITERIA (be EXTREMELY TOUGH and consider conversation history):
 
 FINAL SCORE CALCULATION:
 - Average the 4 criteria scores for this message
-- This will be combined with previous scores for a rolling average
 - Cap at 10.0 maximum
 - Round to 1 decimal place
 
@@ -205,17 +204,8 @@ Format your response as JSON:
                 current_message_score = min(current_message_score, 10.0)
                 current_message_score = round(current_message_score, 1)
                 
-                # Calculate weighted average (current message gets 40% weight, previous average gets 60%)
-                if previous_scores and len(previous_scores) > 0:
-                    previous_average = sum(previous_scores) / len(previous_scores)
-                    # Weighted average: 40% current, 60% previous
-                    # rolling_average = (current_message_score * 0.4) + (previous_average * 0.6)
-                    rolling_average = current_message_score
-                else:
-                    # First message - no previous scores, use raw score
-                    rolling_average = current_message_score
-                
-                rolling_average = round(rolling_average, 1)
+                # Use current message score as quality score
+                quality_score = current_message_score
                 
                 feedback = feedback_data.get('feedback', 'No specific feedback available.')
                 
@@ -224,23 +214,16 @@ Format your response as JSON:
                 
                 # Add conversation context to feedback
                 if conversation_depth > 3:
-                    feedback += f"\n\nNote: This is message #{conversation_depth}. Your weighted average is {rolling_average}/10 (40% current message, 60% previous average)."
+                    feedback += f"\n\nNote: This is message #{conversation_depth}. Your current quality score is {quality_score}/10."
                 
-                return rolling_average, feedback, current_message_score
+                return quality_score, feedback, current_message_score
                 
             except json.JSONDecodeError:
                 # Fallback if JSON parsing fails
                 current_message_score = 5.0
-                
-                # Calculate weighted average (same logic as above)
-                if previous_scores and len(previous_scores) > 0:
-                    previous_average = sum(previous_scores) / len(previous_scores)
-                    rolling_average = (current_message_score * 0.4) + (previous_average * 0.6)
-                else:
-                    rolling_average = current_message_score
-                
-                rolling_average = round(rolling_average, 1)
-                return rolling_average, response_text, current_message_score
+                quality_score = current_message_score
+                quality_score = round(quality_score, 1)
+                return quality_score, response_text, current_message_score
             
         except Exception as e:
             return 5.0, f"Error generating feedback: {str(e)}", 5.0

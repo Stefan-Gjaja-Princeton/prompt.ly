@@ -178,16 +178,16 @@ def send_message(conversation_id):
         })
         
         # Get feedback and score FIRST (before AI response)
-        rolling_average_score, feedback, current_message_score = ai_service.get_feedback_response(messages, previous_scores)
+        quality_score, feedback, current_message_score = ai_service.get_feedback_response(messages, previous_scores)
         
-        # Update conversation with new messages, rolling average score, and feedback FIRST
+        # Update conversation with new messages, quality score, and feedback FIRST
         new_message_scores = previous_scores + [current_message_score]
-        db.update_conversation(conversation_id, messages, rolling_average_score, new_message_scores, feedback)
+        db.update_conversation(conversation_id, messages, quality_score, new_message_scores, feedback)
         
         # Return feedback immediately (before AI response)
         return jsonify({
             "feedback_ready": True,
-            "quality_score": rolling_average_score,
+            "quality_score": quality_score,
             "feedback": feedback,
             "messages": messages
         })
