@@ -37,6 +37,7 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
     }
   };
 
+  // submits prompt
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -44,6 +45,7 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
     }
   };
 
+  // handles the message itself
   const handleInputChange = (e) => {
     setInputMessage(e.target.value);
 
@@ -61,6 +63,7 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
     }
   };
 
+  // handles when we're clicked on the input
   const handleInputFocus = (e) => {
     // Reset height when focusing
     const textarea = e.target;

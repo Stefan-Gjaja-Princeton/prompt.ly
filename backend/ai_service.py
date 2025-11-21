@@ -7,7 +7,7 @@ import json
 class AIService:
     def __init__(self, api_key: str):
         self.client = openai.OpenAI(api_key=api_key)
-        self.model = "gpt-4o"  # Easily modifiable
+        self.model = "gpt-4o" # can modify to get better results with like gpt 5
     
     def get_chat_response(self, messages: List[Dict], quality_score: float, user_name: str = None) -> str:
         """Get response from the main chat AI based on quality score"""
@@ -52,10 +52,12 @@ class AIService:
             if len(formatted_messages) <= 1:  # Only system message
                 raise ValueError("No user or assistant messages found in conversation")
             
+            # code written when I was trying to understand why my messages weren't sending properly
             print(f"DEBUG: Sending {len(formatted_messages)} messages to OpenAI (1 system + {len(formatted_messages)-1} conversation)")
             print(f"DEBUG: Model: {self.model}, Max tokens: {max_tokens}")
             print(f"DEBUG: Last user message: {formatted_messages[-1] if formatted_messages else 'None'}")
             
+            # openAI API
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=formatted_messages,
@@ -63,6 +65,7 @@ class AIService:
                 temperature=0.7
             )
             
+            # makes sure its going to display properly
             if not response.choices or not response.choices[0].message:
                 raise ValueError("Empty response from OpenAI")
             
@@ -183,16 +186,17 @@ Format your response as JSON:
                     {"role": "user", "content": f"Analyze this conversation:\n{json.dumps(messages, indent=2)}"}
                 ],
                 max_tokens=600,
-                temperature=0.2  # Lower temperature for more consistent scoring
+                temperature=0.2  # seems to make the scoring more consistent
             )
             
-            # Parse the JSON response
+            # JSON response
             response_text = response.choices[0].message.content
             
             # Try to extract JSON from the response (in case it's wrapped in text)
             json_start = response_text.find('{')
             json_end = response_text.rfind('}') + 1
             
+            # extracting text
             if json_start != -1 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
             else:
@@ -209,7 +213,7 @@ Format your response as JSON:
                 
                 feedback = feedback_data.get('feedback', 'No specific feedback available.')
                 
-                # Clean up any JSON artifacts that might have leaked into feedback
+                # Clean up any JSON artifacts that might have leaked into feedback - was in response to UI poroblems
                 feedback = feedback.replace('```json', '').replace('```', '').strip()
                 
                 # Add conversation context to feedback
@@ -233,6 +237,7 @@ Format your response as JSON:
         if not messages:
             return "New Conversation"
         
+        # just prompts the AI tool to generate a title
         first_message = messages[0].get('content', '')
         if len(first_message) <= 50:
             return first_message

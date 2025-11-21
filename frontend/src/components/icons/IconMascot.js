@@ -1,3 +1,5 @@
+// IMPORTANT NOTE: This and the icon options were made by Cursor when I asked for specific
+// logos for my product based on specific criteria, and it came up with three different ones.
 /**
  * Mascot Icon Selector
  *

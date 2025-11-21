@@ -33,12 +33,12 @@ else:
         allow_headers=['Content-Type', 'Authorization']
     )
 
-# Initialize services
+# Initialize database contact
 db = Database()
 
 # Check if API key is available
 if not Config.OPENAI_API_KEY or Config.OPENAI_API_KEY == "your-api-key-here":
-    print("❌ ERROR: OpenAI API key not found!")
+    print("ERROR: OpenAI API key not found!")
     print("Please set your API key in one of these ways:")
     print("1. Edit backend/api_key.py and replace 'your-api-key-here' with your actual key")
     print("2. Set environment variable: export OPENAI_API_KEY='your-key-here'")
@@ -47,11 +47,12 @@ if not Config.OPENAI_API_KEY or Config.OPENAI_API_KEY == "your-api-key-here":
 
 ai_service = AIService(Config.OPENAI_API_KEY)
 
+# a health check to make sure app is running and endpoints reachable
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "healthy"})
 
-# User profile endpoint
+# get user profile endpoint
 @app.route('/api/user/profile', methods=['GET'])
 @require_auth
 def get_user_profile():
@@ -89,6 +90,7 @@ def get_user_profile():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# get all conversations from a specific user endpoint
 @app.route('/api/conversations', methods=['GET'])
 @require_auth
 def get_conversations():
@@ -101,26 +103,29 @@ def get_conversations():
         conversation_ids = db.get_user_conversations(user_email)
         conversations = []
         
+        # this is currently overwriting the titles, so I need to change this
         for conv_id in conversation_ids:
             summary = db.get_conversation_summary(conv_id)
             if summary:
                 conversations.append(summary)
         
-        # Sort by updated_at descending
+        # Sort by updated_at descending so that it's most recently updated
         conversations.sort(key=lambda x: x['updated_at'], reverse=True)
         return jsonify(conversations)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# endpoint to make a new convo
 @app.route('/api/conversations', methods=['POST'])
 @require_auth
 def create_conversation():
     """Create a new conversation"""
     try:
         user_email = request.current_user['email']
+        # unique identifier
         conversation_id = str(uuid.uuid4())
         
-        # Ensure user exists in DB (idempotent)
+        # Ensure user exists in DB, doesn't do anything if already in there
         db.create_user(user_email)
         
         # Create conversation
@@ -137,6 +142,7 @@ def create_conversation():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# endpoint to get a speific conversation
 @app.route('/api/conversations/<conversation_id>', methods=['GET'])
 @require_auth
 def get_conversation(conversation_id):
@@ -150,6 +156,7 @@ def get_conversation(conversation_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# endpoint to send a message in a specific conversation
 @app.route('/api/conversations/<conversation_id>/messages', methods=['POST'])
 @require_auth
 def send_message(conversation_id):
@@ -177,7 +184,7 @@ def send_message(conversation_id):
             "timestamp": datetime.now().isoformat()
         })
         
-        # Get feedback and score FIRST (before AI response)
+        # Get feedback and score FIRST (before AI response) just so its not all coming at once
         quality_score, feedback, current_message_score = ai_service.get_feedback_response(messages, previous_scores)
         
         # Update conversation with new messages, quality score, and feedback FIRST
@@ -195,6 +202,7 @@ def send_message(conversation_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# endpoint to get ai response after the feedback is given
 @app.route('/api/conversations/<conversation_id>/response', methods=['POST'])
 @require_auth
 def get_ai_response(conversation_id):

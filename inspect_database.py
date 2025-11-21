@@ -24,7 +24,7 @@ def inspect_database(db_path="backend/promptly.db"):
         print(f"Tables found: {[table[0] for table in tables]}")
         print()
         
-        # Inspect users table
+        # Inspect users table and prints out data about it 
         print("USERS TABLE:")
         print("-" * 30)
         cursor.execute("SELECT * FROM users")
@@ -39,7 +39,7 @@ def inspect_database(db_path="backend/promptly.db"):
             print("No users found")
         print()
         
-        # Inspect conversations table
+        # Inspect conversations table and prints out data about it
         print("CONVERSATIONS TABLE:")
         print("-" * 30)
         cursor.execute("SELECT * FROM conversations")

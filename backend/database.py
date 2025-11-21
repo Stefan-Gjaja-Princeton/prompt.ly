@@ -22,7 +22,7 @@ if USE_POSTGRES:
         print("WARNING: psycopg2 not installed. Install with: pip install psycopg2-binary")
         USE_POSTGRES = False
 
-# SQLite fallback
+# SQLite fallback - but on render version won't fall back
 if not USE_POSTGRES:
     import sqlite3
     print("Using SQLite database")
@@ -68,6 +68,7 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             return conn
     
+    # deprecate this, not used any more
     def _execute_query(self, query: str, params: tuple = None, fetch_one: bool = False, fetch_all: bool = False):
         """Execute a query and return results"""
         conn = None
@@ -125,6 +126,7 @@ class Database:
         except Exception as e:
             print(f"Warning: Could not clear database locks: {e}")
     
+    # makes the database that I use
     def init_database(self):
         """Initialize the database with required tables"""
         conn = None
@@ -135,6 +137,7 @@ class Database:
             if self.use_postgres:
                 # PostgreSQL table creation
                 # Create users table
+                # will probably take out the conversation_ids list because not actually helpful
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS users (
                         email VARCHAR(255) PRIMARY KEY,
@@ -149,6 +152,7 @@ class Database:
                 ''')
                 
                 # Create conversations table
+                # can just use this to fetch the conversations
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS conversations (
                         conversation_id VARCHAR(255) PRIMARY KEY,
@@ -191,7 +195,7 @@ class Database:
                     )
                 ''')
             
-            # Add current_feedback column if it doesn't exist (for existing databases)
+            # Add current_feedback column if it doesn't exist (for existing databases) - was when I was porting over
             if self.use_postgres:
                 # PostgreSQL: Check if column exists
                 cursor.execute('''
@@ -218,7 +222,7 @@ class Database:
                 conn.close()
     
     def create_user(self, email: str, first_name: str = None, last_name: str = None, google_id: str = None, profile_picture_url: str = None) -> bool:
-        """Create a new user (idempotent for existing users)"""
+        """Create a new user (doesn't do anything for existing users)"""
         conn = None
         try:
             conn = self._get_connection()
@@ -336,7 +340,7 @@ class Database:
             conn = self._get_connection()
             cursor = conn.cursor()
             
-            # Start transaction
+            # Start transaction - won't need this if I remove the redundant data
             if self.use_postgres:
                 cursor.execute("BEGIN")
             else:

@@ -24,6 +24,7 @@ function App() {
     [getAccessTokenSilently]
   );
 
+  // state management
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -38,7 +39,7 @@ function App() {
   const loadConversationRef = useRef();
   const isSendingMessageRef = useRef(false); // Track if we're currently sending a message
 
-  // Stable callback that doesn't depend on apiService directly
+  // gets all the convos
   const loadConversations = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
@@ -51,6 +52,7 @@ function App() {
 
   loadConversationsRef.current = loadConversations;
 
+  // gets the specific convos when conversation ID changes
   const loadConversation = useCallback(
     async (conversationId) => {
       if (!conversationId) return;
@@ -81,7 +83,7 @@ function App() {
   }, [isAuthenticated]);
 
   // Load conversation when currentConversationId changes
-  // But don't load if we're currently sending a message (to preserve user message)
+  // But don't load if we're currently sending a message (to preserve user message) - in response to user feedback
   useEffect(() => {
     if (
       currentConversationId &&
@@ -92,6 +94,7 @@ function App() {
     }
   }, [currentConversationId]);
 
+  // uses the apiService to make a conversation
   const createNewConversation = async () => {
     try {
       const data = await apiService.createConversation();
@@ -132,6 +135,7 @@ function App() {
 
     // Ensure we have a conversation to send into; create one if needed
     let activeConversationId = currentConversationId;
+    // this is all if we gotta make a new convo
     if (!activeConversationId) {
       try {
         // Create conversation but don't clear messages - preserve the user message we just added

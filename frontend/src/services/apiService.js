@@ -125,38 +125,3 @@ export const createApiService = (getAccessTokenSilently) => {
     },
   };
 };
-
-// Default export for compatibility (won't include auth)
-export const apiService = {
-  getConversations: async () => {
-    const response = await axios.get(`${API_BASE_URL}/conversations`);
-    return response.data;
-  },
-  createConversation: async () => {
-    const response = await axios.post(`${API_BASE_URL}/conversations`);
-    return response.data;
-  },
-  getConversation: async (conversationId) => {
-    const response = await axios.get(
-      `${API_BASE_URL}/conversations/${conversationId}`
-    );
-    return response.data;
-  },
-  sendMessage: async (conversationId, message) => {
-    const response = await axios.post(
-      `${API_BASE_URL}/conversations/${conversationId}/messages`,
-      { message }
-    );
-    return response.data;
-  },
-  getAIResponse: async (conversationId) => {
-    const response = await axios.post(
-      `${API_BASE_URL}/conversations/${conversationId}/response`
-    );
-    return response.data;
-  },
-  healthCheck: async () => {
-    const response = await axios.get(`${API_BASE_URL}/health`);
-    return response.data;
-  },
-};
