@@ -6,18 +6,39 @@ import React from "react";
 
 /**
  * Enhanced markdown parser for chat messages
- * Supports: **bold**, *bold*, bullet lists (- or *), and numbered lists
+ * Supports: **bold**, *bold*, bullet lists (- or *), numbered lists, code blocks (```), and inline code (`)
  * @param {string} text - Text that may contain markdown
  * @returns {JSX.Element|string} - React element with markdown rendered
  */
 export const renderMarkdown = (text) => {
   if (!text || typeof text !== "string") return text;
 
+  // First, extract code blocks (```code```)
+  const codeBlocks = [];
+  let codeBlockIndex = 0;
+  let processedText = text.replace(/```([\s\S]*?)```/g, (match, code) => {
+    const placeholder = `__CODE_BLOCK_${codeBlockIndex}__`;
+    codeBlocks.push({ placeholder, code: code.trim() });
+    codeBlockIndex++;
+    return placeholder;
+  });
+
   // Split text into lines to handle lists
-  const lines = text.split("\n");
+  const lines = processedText.split("\n");
   const processedLines = [];
 
   for (let line of lines) {
+    // Check if this line is a code block placeholder
+    const codeBlockMatch = line.match(/^__CODE_BLOCK_(\d+)__$/);
+    if (codeBlockMatch) {
+      const blockIndex = parseInt(codeBlockMatch[1]);
+      processedLines.push({
+        type: "codeblock",
+        content: codeBlocks[blockIndex].code,
+      });
+      continue;
+    }
+
     // Check if line is a bullet point (starts with - or * followed by space)
     const bulletMatch = line.match(/^(\s*)([-*])\s+(.+)$/);
     if (bulletMatch) {
@@ -33,20 +54,20 @@ export const renderMarkdown = (text) => {
     }
 
     // Check if line is a numbered list item (starts with number. followed by space)
+    // Group consecutive numbered items together regardless of source number
     const numberedMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/);
     if (numberedMatch) {
-      const [, indent, number, content] = numberedMatch;
+      const [, indent, , content] = numberedMatch; // Ignore number, let HTML <ol> handle numbering
       const indentLevel = Math.floor(indent.length / 2);
       processedLines.push({
         type: "numbered",
         content: content,
         indentLevel: indentLevel,
-        number: number,
       });
       continue;
     }
 
-    // Regular text line (might contain bold formatting)
+    // Regular text line (might contain bold formatting and inline code)
     processedLines.push({
       type: "text",
       content: line,
@@ -60,7 +81,27 @@ export const renderMarkdown = (text) => {
   let listIndent = 0;
 
   processedLines.forEach((line, index) => {
-    if (line.type === "bullet" || line.type === "numbered") {
+    if (line.type === "codeblock") {
+      // Close any open list before code block
+      if (listItems.length > 0) {
+        const ListTag = listType === "bullet" ? "ul" : "ol";
+        elements.push(
+          <ListTag key={`list-${elements.length}`} className="markdown-list">
+            {listItems}
+          </ListTag>
+        );
+        listItems = [];
+        listType = null;
+        listIndent = 0;
+      }
+
+      // Render code block
+      elements.push(
+        <pre key={`code-${index}`} className="markdown-code-block">
+          <code>{line.content}</code>
+        </pre>
+      );
+    } else if (line.type === "bullet" || line.type === "numbered") {
       // If we're starting a new list or continuing the same type
       if (listType !== line.type || listIndent !== line.indentLevel) {
         // Close previous list if exists
@@ -77,16 +118,9 @@ export const renderMarkdown = (text) => {
         listIndent = line.indentLevel;
       }
 
-      // Process content for bold text within list item
+      // Process content for bold text and inline code within list item
       const processedContent = processInlineFormatting(line.content);
-      listItems.push(
-        <li
-          key={`item-${index}`}
-          style={{ marginLeft: `${line.indentLevel * 20}px` }}
-        >
-          {processedContent}
-        </li>
-      );
+      listItems.push(<li key={`item-${index}`}>{processedContent}</li>);
     } else {
       // Close any open list
       if (listItems.length > 0) {
@@ -137,52 +171,116 @@ export const renderMarkdown = (text) => {
 };
 
 /**
- * Process inline formatting (bold text) within a line
- * Supports **text** for bold (double asterisk)
+ * Process inline formatting (bold text and inline code) within a line
+ * Supports **text** for bold and `code` for inline code
  */
 function processInlineFormatting(text) {
   if (!text) return text;
 
-  // Use regex to find all **text** patterns
+  // First extract inline code blocks (`code`)
+  const inlineCodeParts = [];
+  let inlineCodeIndex = 0;
+  const processedText = text.replace(/`([^`]+)`/g, (match, code) => {
+    const placeholder = `__INLINE_CODE_${inlineCodeIndex}__`;
+    inlineCodeParts.push({ placeholder, code });
+    inlineCodeIndex++;
+    return placeholder;
+  });
+
+  // Then process bold formatting
   const boldRegex = /\*\*(.+?)\*\*/g;
   const parts = [];
   let lastIndex = 0;
   let match;
   let hasFormatting = false;
 
-  while ((match = boldRegex.exec(text)) !== null) {
+  while ((match = boldRegex.exec(processedText)) !== null) {
     // Add text before the bold section
     if (match.index > lastIndex) {
-      const beforeText = text.substring(lastIndex, match.index);
+      const beforeText = processedText.substring(lastIndex, match.index);
       if (beforeText) {
-        parts.push({ text: beforeText, bold: false });
+        parts.push({ text: beforeText, type: "text" });
       }
     }
 
     // Add the bold section (without the ** markers)
-    parts.push({ text: match[1], bold: true });
+    parts.push({ text: match[1], type: "bold" });
     hasFormatting = true;
     lastIndex = match.index + match[0].length;
   }
 
   // Add remaining text
-  if (lastIndex < text.length) {
-    const remaining = text.substring(lastIndex);
+  if (lastIndex < processedText.length) {
+    const remaining = processedText.substring(lastIndex);
     if (remaining) {
-      parts.push({ text: remaining, bold: false });
+      parts.push({ text: remaining, type: "text" });
     }
   }
 
-  // If no formatting found, return as plain text
-  if (!hasFormatting || parts.length === 0) {
+  // If no formatting found, check for inline code only
+  if (!hasFormatting && inlineCodeParts.length === 0) {
     return text;
   }
 
-  // Render with React elements
+  if (parts.length === 0) {
+    parts.push({ text: processedText, type: "text" });
+  }
+
+  // Render with React elements, replacing inline code placeholders
   return parts.map((part, index) => {
-    if (part.bold) {
-      return <strong key={index}>{part.text}</strong>;
+    let content = part.text;
+
+    // Replace inline code placeholders with actual code elements
+    const elementParts = [];
+    let codeLastIndex = 0;
+
+    inlineCodeParts.forEach(({ placeholder, code }) => {
+      const placeholderIndex = content.indexOf(placeholder);
+      if (placeholderIndex !== -1) {
+        // Add text before placeholder
+        if (placeholderIndex > codeLastIndex) {
+          const beforeCode = content.substring(codeLastIndex, placeholderIndex);
+          if (beforeCode) {
+            elementParts.push(
+              <span key={`text-${index}-${elementParts.length}`}>
+                {beforeCode}
+              </span>
+            );
+          }
+        }
+        // Add inline code element
+        elementParts.push(
+          <code
+            key={`code-${index}-${elementParts.length}`}
+            className="markdown-inline-code"
+          >
+            {code}
+          </code>
+        );
+        codeLastIndex = placeholderIndex + placeholder.length;
+      }
+    });
+
+    // Add remaining text after last placeholder
+    if (codeLastIndex < content.length) {
+      const afterCode = content.substring(codeLastIndex);
+      if (afterCode) {
+        elementParts.push(
+          <span key={`text-${index}-${elementParts.length}`}>{afterCode}</span>
+        );
+      }
     }
-    return <span key={index}>{part.text}</span>;
+
+    // If no inline code was found in this part, use the whole content
+    if (elementParts.length === 0) {
+      elementParts.push(<span key={`text-${index}`}>{content}</span>);
+    }
+
+    // Wrap in strong if bold
+    if (part.type === "bold") {
+      return <strong key={index}>{elementParts}</strong>;
+    }
+
+    return <React.Fragment key={index}>{elementParts}</React.Fragment>;
   });
 }
