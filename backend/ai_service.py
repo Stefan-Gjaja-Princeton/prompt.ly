@@ -129,7 +129,8 @@ SCORING CRITERIA (be EXTREMELY TOUGH and consider conversation history):
 
 2. CRITICAL THINKING (1-10): Does the prompt show analysis or reasoning?
    - Simple requests that are not well thought through = 2/10
-   - Questions that are easy to answer in which AI is not much of a value add = 3/10
+   - Questions that are easy to answer that have DIRECT answers and could easily be googled = 8/10
+   - Multi-step questions that the user wants AI to do for them = 2/10
    - Analytical questions = 10/10
 
 3. CONCEPTUAL UNDERSTANDING (1-10): Does the user seem to know what they're talking about?
