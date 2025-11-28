@@ -90,9 +90,9 @@ class TestAIService:
         response = service.get_chat_response(sample_messages, quality_score=2.0)
         
         assert response == "I need more information."
-        # Verify max_tokens was set to 100 for low quality
+        # Verify max_tokens was not set (removed to allow unlimited responses)
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args[1]['max_tokens'] == 100
+        assert 'max_tokens' not in call_args[1] or call_args[1].get('max_tokens') is None
     
     @patch('ai_service.openai.OpenAI')
     def test_get_chat_response_high_quality(self, mock_openai_class, ai_service, sample_messages):
@@ -114,9 +114,9 @@ class TestAIService:
         response = service.get_chat_response(sample_messages, quality_score=8.0)
         
         assert response == "This is a detailed response."
-        # Verify max_tokens was set to 1000 for high quality
+        # Verify max_tokens was not set (removed to allow unlimited responses)
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args[1]['max_tokens'] == 1000
+        assert 'max_tokens' not in call_args[1] or call_args[1].get('max_tokens') is None
     
     @patch('ai_service.openai.OpenAI')
     def test_get_feedback_response_json_parsing_error(self, mock_openai_class, ai_service, sample_messages):

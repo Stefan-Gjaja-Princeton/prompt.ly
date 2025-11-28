@@ -225,7 +225,7 @@
   background-color: rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 6px;
-  padding: 12px 16px;
+  padding: 0px 12px;
   margin: 0.75em 0;
   overflow-x: auto;
   font-family: "Courier New", Courier, monospace;
@@ -233,6 +233,51 @@
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
+  position: relative;
+}
+
+.copy-code-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: none;
+  border-radius: 4px;
+  padding: 0 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #666;
+  font-size: 12px;
+  line-height: 1;
+  transition: opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+  z-index: 10;
+  height: 24px;
+  margin: 0;
+}
+
+.copy-code-button:hover {
+  opacity: 1;
+  color: #666;
+  background-color: rgba(205, 205, 205);
+}
+
+.copy-code-button:active {
+  opacity: 0.8;
+}
+
+.copy-code-button svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.copy-code-button span {
+  display: inline-block;
+  line-height: 1;
+  vertical-align: middle;
 }
 
 .message-text .markdown-code-block code {
@@ -242,6 +287,7 @@
   font-family: inherit;
   font-size: inherit;
   color: inherit;
+  display: block;
 }
 
 .message-text .markdown-inline-code {

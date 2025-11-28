@@ -30,6 +30,46 @@ const ChatWindow = ({
     scrollToBottom();
   }, [messages]);
 
+  // Handle copy button clicks for code blocks
+  useEffect(() => {
+    const handleCopyClick = async (e) => {
+      if (e.target.closest(".copy-code-button")) {
+        const button = e.target.closest(".copy-code-button");
+        const code = button.getAttribute("data-code");
+
+        if (code) {
+          try {
+            // Decode HTML entities
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = code;
+            const decodedCode = tempDiv.textContent || tempDiv.innerText || "";
+
+            await navigator.clipboard.writeText(decodedCode);
+
+            // Visual feedback - change button text temporarily
+            const originalHTML = button.innerHTML;
+            button.innerHTML =
+              '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" fill="currentColor"/></svg>';
+            button.style.color = "#28a745";
+
+            setTimeout(() => {
+              button.innerHTML = originalHTML;
+              button.style.color = "";
+            }, 2000);
+          } catch (err) {
+            console.error("Failed to copy code:", err);
+            alert("Failed to copy code to clipboard");
+          }
+        }
+      }
+    };
+
+    document.addEventListener("click", handleCopyClick);
+    return () => {
+      document.removeEventListener("click", handleCopyClick);
+    };
+  }, [messages]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (inputMessage.trim() && !loading) {

@@ -21,18 +21,15 @@ class AIService:
             Respond in 20-30 words maximum. Be direct and ask for more specific information. 
             Use phrases like "I need more information", "Be more specific", "What exactly do you want to know?"
             Don't provide answers, only ask clarifying questions."""
-            max_tokens = 100
         elif quality_score <= 5:
             # moderately terse, brief responses with follow-up questions
             system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is below average.{name_context}
             Provide brief responses (50-100 words) and ask follow-up questions to encourage better prompting.
             Ask for more context, specificity, or clarification. Guide them to ask better questions."""
-            max_tokens = 200
         else:
             # normal helpful responses
             system_prompt = f"""You are a helpful AI assistant.{name_context} Provide clear, accurate, and useful responses to user questions.
             Be thorough and helpful while encouraging good prompting practices."""
-            max_tokens = 1000
         
         try:
             # Ensure messages are properly formatted
@@ -54,14 +51,13 @@ class AIService:
             
             # code written when I was trying to understand why my messages weren't sending properly
             print(f"DEBUG: Sending {len(formatted_messages)} messages to OpenAI (1 system + {len(formatted_messages)-1} conversation)")
-            print(f"DEBUG: Model: {self.model}, Max tokens: {max_tokens}")
+            print(f"DEBUG: Model: {self.model}")
             print(f"DEBUG: Last user message: {formatted_messages[-1] if formatted_messages else 'None'}")
             
             # openAI API
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=formatted_messages,
-                max_tokens=max_tokens,
                 temperature=0.7
             )
             

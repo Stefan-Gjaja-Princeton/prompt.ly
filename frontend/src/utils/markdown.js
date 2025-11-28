@@ -13,7 +13,25 @@ const renderer = {
     return `<${tag} class="markdown-list">${body}</${tag}>`;
   },
   code(code, language) {
-    return `<pre class="markdown-code-block"><code>${code}</code></pre>`;
+    // Escape HTML in code for the data attribute (to prevent XSS in attribute)
+    const escapedForAttribute = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+    // marked.js will escape the code content automatically
+    return `<pre class="markdown-code-block">
+      <button class="copy-code-button" data-code="${escapedForAttribute}" aria-label="Copy code">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          <rect x="6" y="6" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        </svg>
+        <span>Copy code</span>
+      </button>
+      <code>${code}</code>
+    </pre>`;
   },
   codespan(code) {
     return `<code class="markdown-inline-code">${code}</code>`;
