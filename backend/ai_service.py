@@ -167,7 +167,7 @@ EXAMPLES OF HIGH SCORES:
 
 Provide:
 1. A numerical score (1-10) - be strict!
-2. A quality label: "Poor" (1-3), "Fair" (4-6), "Good" (7-8), or "Excellent" (9-10)
+2. A quality label: "Poor" (1-4), "Fair" (4.1-6), "Good" (6.1-8), or "Excellent" (8.1-10)
 3. The word count of the user's latest message
 4. Exactly 3 improvement tips as an array of strings - be specific and actionable
 5. An example improved prompt that demonstrates how the user could have written their message better
