@@ -47,6 +47,31 @@ if not Config.OPENAI_API_KEY or Config.OPENAI_API_KEY == "your-api-key-here":
 
 ai_service = AIService(Config.OPENAI_API_KEY)
 
+def extract_user_name(user_data, user_from_db=None):
+    """Extract user's first name from Auth0 data or database, with fallbacks"""
+    # Priority 1: Database
+    if user_from_db and user_from_db.get('first_name'):
+        return user_from_db['first_name']
+    
+    # Priority 2: Auth0 name field
+    name = user_data.get('name')
+    if isinstance(name, list) and len(name) > 0:
+        return name[0]
+    elif isinstance(name, str) and name.strip():
+        return name.strip().split()[0]
+    
+    # Priority 3: Auth0 nickname
+    nickname = user_data.get('nickname')
+    if nickname:
+        return nickname
+    
+    # Priority 4: Email prefix (last resort)
+    email = user_data.get('email', '')
+    if email:
+        return email.split('@')[0]
+    
+    return None
+
 # a health check to make sure app is running and endpoints reachable
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -64,27 +89,87 @@ def get_user_profile():
         email = user_data['email']
         existing_user = db.get_user_by_email(email)
         
+        # Parse name from Auth0 data
+        # Auth0 name can be a string (e.g., "John Doe") or None
+        name = user_data.get('name')
+        if isinstance(name, list):
+            # If it's already a list from our parsing
+            first_name = name[0] if len(name) > 0 else None
+            last_name = name[1] if len(name) > 1 else None
+        elif isinstance(name, str) and name.strip():
+            # Split full name into first and last
+            name_parts = name.strip().split(maxsplit=1)
+            first_name = name_parts[0] if len(name_parts) > 0 else None
+            last_name = name_parts[1] if len(name_parts) > 1 else None
+        else:
+            # Fallback to nickname or email prefix
+            first_name = user_data.get('nickname') or (email.split('@')[0] if email else None)
+            last_name = None
+        
+        google_id = user_data.get('sub')
+        profile_picture_url = user_data.get('picture')
+        
         if not existing_user:
             # Create new user from Auth0 data
-            name = user_data.get('name', [])
-            if isinstance(name, list) and len(name) > 0:
-                first_name = name[0]
-                last_name = name[1] if len(name) > 1 else ''
-            else:
-                first_name = user_data.get('nickname', '') or user_data.get('email', '').split('@')[0] if user_data.get('email') else ''
-                last_name = ''
-            
             db.create_user(
                 email=email,
-                first_name=first_name or user_data.get('nickname', ''),
+                first_name=first_name,
                 last_name=last_name,
-                google_id=user_data.get('sub'),
-                profile_picture_url=user_data.get('picture')
+                google_id=google_id,
+                profile_picture_url=profile_picture_url
             )
             existing_user = db.get_user_by_email(email)
         else:
-            # Update last login
-            db.update_user_login(email)
+            # Update profile information for existing users
+            # Update fields that are missing in database or have new values from Auth0
+            should_update = False
+            update_first_name = None
+            update_last_name = None
+            update_google_id = None
+            update_picture = None
+            
+            # Update first_name if missing or different
+            if first_name and (not existing_user.get('first_name') or existing_user.get('first_name') != first_name):
+                update_first_name = first_name
+                should_update = True
+            
+            # Update last_name if missing or different
+            if last_name and (not existing_user.get('last_name') or existing_user.get('last_name') != last_name):
+                update_last_name = last_name
+                should_update = True
+            
+            # Update google_id if missing or different
+            if google_id and (not existing_user.get('google_id') or existing_user.get('google_id') != google_id):
+                update_google_id = google_id
+                should_update = True
+            
+            # Update profile_picture_url if missing or different
+            if profile_picture_url and (not existing_user.get('profile_picture_url') or existing_user.get('profile_picture_url') != profile_picture_url):
+                update_picture = profile_picture_url
+                should_update = True
+            
+            if should_update:
+                print(f"DEBUG: Updating user profile for {email}")
+                print(f"DEBUG:   first_name: {existing_user.get('first_name')} -> {update_first_name}")
+                print(f"DEBUG:   last_name: {existing_user.get('last_name')} -> {update_last_name}")
+                print(f"DEBUG:   google_id: {existing_user.get('google_id')} -> {update_google_id}")
+                print(f"DEBUG:   picture: {bool(existing_user.get('profile_picture_url'))} -> {bool(update_picture)}")
+                
+                db.update_user_profile(
+                    email=email,
+                    first_name=update_first_name,
+                    last_name=update_last_name,
+                    google_id=update_google_id,
+                    profile_picture_url=update_picture
+                )
+                print(f"DEBUG: Profile updated successfully for {email}")
+                # Refresh user data after update
+                existing_user = db.get_user_by_email(email)
+            else:
+                # Just update last login if nothing else changed
+                db.update_user_login(email)
+                # Refresh to get updated last_login
+                existing_user = db.get_user_by_email(email)
         
         return jsonify(existing_user)
     except Exception as e:
@@ -222,12 +307,55 @@ def get_ai_response(conversation_id):
         current_quality_score = conversation.get('quality_score') or 5.0
         
         # Get user's first name for personalization
+        user_email = request.current_user.get('email')
         user_data = request.current_user
-        name = user_data.get('name', [])
-        if isinstance(name, list) and len(name) > 0:
-            first_name = name[0]
+        user_from_db = db.get_user_by_email(user_email) if user_email else None
+        
+        # Extract name using helper function
+        first_name = extract_user_name(user_data, user_from_db)
+        
+        # Parse full name from Auth0 for potential profile update
+        name = user_data.get('name')
+        if isinstance(name, list):
+            auth0_first_name = name[0] if len(name) > 0 else None
+            auth0_last_name = name[1] if len(name) > 1 else None
+        elif isinstance(name, str) and name.strip():
+            name_parts = name.strip().split(maxsplit=1)
+            auth0_first_name = name_parts[0] if len(name_parts) > 0 else None
+            auth0_last_name = name_parts[1] if len(name_parts) > 1 else None
         else:
-            first_name = user_data.get('nickname', '') or user_data.get('email', '').split('@')[0] if user_data.get('email') else ''
+            auth0_first_name = user_data.get('nickname')
+            auth0_last_name = None
+        
+        # Update profile if name is missing in database or Auth0 has better/updated data
+        db_first_name = user_from_db.get('first_name') if user_from_db else None
+        email_prefix = user_email.split('@')[0] if user_email else ''
+        should_update_profile = False
+        
+        # Update if name is missing in database
+        if not db_first_name and auth0_first_name and auth0_first_name != email_prefix:
+            should_update_profile = True
+            print(f"DEBUG: Name missing in database but found in Auth0 ({auth0_first_name}). Updating profile...")
+        # Update if Auth0 has a real name but database has email prefix
+        elif db_first_name == email_prefix and auth0_first_name and auth0_first_name != email_prefix:
+            should_update_profile = True
+            print(f"DEBUG: Database has email prefix, but Auth0 has real name ({auth0_first_name}). Updating profile...")
+        
+        if should_update_profile and user_from_db:
+            try:
+                db.update_user_profile(
+                    email=user_email,
+                    first_name=auth0_first_name,
+                    last_name=auth0_last_name,
+                    google_id=user_data.get('sub'),
+                    profile_picture_url=user_data.get('picture')
+                )
+                print(f"DEBUG: Profile updated - first_name: {auth0_first_name}, last_name: {auth0_last_name}")
+                # Refresh from database after update
+                user_from_db = db.get_user_by_email(user_email)
+                first_name = extract_user_name(user_data, user_from_db)
+            except Exception as e:
+                print(f"WARNING: Failed to update profile: {e}")
         
         print(f"DEBUG: Getting AI response for conversation {conversation_id}")
         print(f"DEBUG: Messages count: {len(messages)}")

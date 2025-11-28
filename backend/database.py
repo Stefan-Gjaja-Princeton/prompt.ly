@@ -309,6 +309,52 @@ class Database:
             if conn:
                 conn.close()
     
+    def update_user_profile(self, email: str, first_name: str = None, last_name: str = None, google_id: str = None, profile_picture_url: str = None) -> bool:
+        """Update user profile information"""
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # Build update query dynamically based on what's provided
+            updates = []
+            values = []
+            
+            if first_name is not None:
+                updates.append("first_name = %s" if self.use_postgres else "first_name = ?")
+                values.append(first_name)
+            if last_name is not None:
+                updates.append("last_name = %s" if self.use_postgres else "last_name = ?")
+                values.append(last_name)
+            if google_id is not None:
+                updates.append("google_id = %s" if self.use_postgres else "google_id = ?")
+                values.append(google_id)
+            if profile_picture_url is not None:
+                updates.append("profile_picture_url = %s" if self.use_postgres else "profile_picture_url = ?")
+                values.append(profile_picture_url)
+            
+            # Always update last_login
+            updates.append("last_login = CURRENT_TIMESTAMP")
+            
+            if updates:
+                values.append(email)
+                update_clause = ", ".join(updates)
+                if self.use_postgres:
+                    cursor.execute(f"UPDATE users SET {update_clause} WHERE email = %s", tuple(values))
+                else:
+                    cursor.execute(f"UPDATE users SET {update_clause} WHERE email = ?", tuple(values))
+                conn.commit()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error updating user profile: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
+    
     def get_user_conversations(self, email: str) -> List[str]:
         """Get all conversation IDs for a user"""
         conn = None

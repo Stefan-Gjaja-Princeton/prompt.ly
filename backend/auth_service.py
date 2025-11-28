@@ -97,9 +97,17 @@ class AuthService:
         picture = payload.get('picture')
         nickname = payload.get('nickname')
         
-        # Only call /userinfo as a last resort if email is missing
-        # This should be rare if Auth0 is configured correctly
-        if not email:
+        # Debug: Log what's in the access token
+        print(f"DEBUG: Access token claims - email: {bool(email)}, name: {name}, picture: {bool(picture)}, nickname: {nickname}")
+        print(f"DEBUG: Available token claims: {list(payload.keys())}")
+        
+        # Access tokens often don't include profile info (name, picture)
+        # Always try to get complete profile from /userinfo if profile data is missing
+        has_name = name and (isinstance(name, str) and name.strip() != '')
+        needs_userinfo = not email or not has_name or not picture
+        
+        if needs_userinfo:
+            print(f"DEBUG: Missing profile data (email: {bool(email)}, name: {name}, picture: {bool(picture)}) - fetching from /userinfo endpoint...")
             try:
                 userinfo_url = f"https://{self.domain}/userinfo"
                 headers = {'Authorization': authorization_header}
@@ -107,14 +115,24 @@ class AuthService:
                 
                 if resp.status_code == 200:
                     ui = resp.json()
+                    print(f"DEBUG: /userinfo response: {list(ui.keys())}")
+                    # Use userinfo data, preferring it over token data
                     email = ui.get('email') or email
-                    name = ui.get('name') or name
-                    picture = ui.get('picture') or picture
-                    nickname = ui.get('nickname') or nickname
+                    userinfo_name = ui.get('name')
+                    userinfo_picture = ui.get('picture')
+                    userinfo_nickname = ui.get('nickname')
+                    
+                    # Only update if we got better data
+                    if userinfo_name and (not name or (isinstance(name, str) and name.strip() == '')):
+                        name = userinfo_name
+                        print(f"DEBUG: Updated name from userinfo: {name}")
+                    if userinfo_picture and not picture:
+                        picture = userinfo_picture
+                    if userinfo_nickname and not nickname:
+                        nickname = userinfo_nickname
                 elif resp.status_code == 429:
                     # Rate limit - cannot proceed without email
-                    print(f"ERROR: Auth0 rate limit hit. Cannot get user email. Sub: {payload.get('sub')}")
-                    print("ERROR: Please configure Auth0 to include email in access tokens to avoid this issue.")
+                    print(f"ERROR: Auth0 rate limit hit. Cannot get user info. Sub: {payload.get('sub')}")
                     if not email:
                         # Return None to fail authentication gracefully
                         return None
