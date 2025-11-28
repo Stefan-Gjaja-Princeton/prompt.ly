@@ -310,6 +310,21 @@
   }
 }
 
+.conversation-limit-message {
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+  color: #000000;
+  flex-shrink: 0;
+}
+
+.conversation-limit-message p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .input-form {
   padding: 20px;
   border-top: 1px solid #e0e0e0;
@@ -322,7 +337,7 @@
 .input-container {
   display: flex;
   gap: 12px;
-  align-items: flex-end;
+  align-items: center;
   background-color: white;
   border: 1px solid #e0e0e0;
   border-radius: 24px;
@@ -330,6 +345,7 @@
   transition: border-color 0.2s;
   max-height: 140px;
   overflow: hidden;
+  cursor: text;
 }
 
 .input-container:focus-within {
@@ -350,6 +366,9 @@
   font-family: inherit;
   overflow-y: auto;
   transition: height 0.1s ease;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: block;
 }
 
 .message-input::placeholder {

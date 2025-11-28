@@ -251,6 +251,9 @@ function App() {
             "Too many requests. Please wait a moment and try again.";
         } else if (status === 500) {
           errorMessage += "Server error occurred. Please try again.";
+        } else if (status === 400 && data?.message) {
+          // Use the message field if available (e.g., conversation limit reached)
+          errorMessage = data.message;
         } else if (data?.error) {
           errorMessage += data.error;
         } else {
@@ -314,6 +317,9 @@ function App() {
           onSendMessage={sendMessage}
           loading={loading}
           isTerse={isTerse}
+          isLimitReached={
+            messages.filter((msg) => msg.role === "user").length >= 20
+          }
         />
 
         <FeedbackPanel

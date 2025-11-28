@@ -253,6 +253,17 @@ def send_message(conversation_id):
             return jsonify({"error": "Conversation not found"}), 404
         
         messages = conversation['messages']
+        
+        # Count existing user messages (not including AI responses)
+        user_message_count = sum(1 for msg in messages if msg.get('role') == 'user')
+        
+        # Check if conversation has reached the 20 user message limit
+        if user_message_count >= 20:
+            return jsonify({
+                "error": "Conversation limit reached",
+                "message": "This conversation has reached the maximum of 20 user messages. Please start a new conversation to continue."
+            }), 400
+        
         current_quality_score = conversation['quality_score'] or 5.0  # Default to 5.0 for AI response if no score yet
         previous_scores = conversation.get('message_scores', [])
         

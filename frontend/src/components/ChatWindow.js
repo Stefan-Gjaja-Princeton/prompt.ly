@@ -9,7 +9,13 @@ import logo from "../assets/promptly_logo.png";
 import { renderMarkdown } from "../utils/markdown";
 import PromptlyMascot from "./icons/IconMascot";
 
-const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
+const ChatWindow = ({
+  messages,
+  onSendMessage,
+  loading,
+  isTerse,
+  isLimitReached = false,
+}) => {
   const { user } = useAuth0();
   const [userImageError, setUserImageError] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
@@ -76,6 +82,14 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
       textarea.style.overflowY = "auto";
     } else {
       textarea.style.overflowY = "hidden";
+    }
+  };
+
+  // Handle clicking anywhere in the input container to focus the textarea
+  const handleContainerClick = (e) => {
+    // Only focus if the click wasn't on the button
+    if (e.target.tagName !== "BUTTON" && inputRef.current) {
+      inputRef.current.focus();
     }
   };
 
@@ -167,28 +181,39 @@ const ChatWindow = ({ messages, onSendMessage, loading, isTerse }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      <form className="input-form" onSubmit={handleSubmit}>
-        <div className="input-container">
-          <textarea
-            ref={inputRef}
-            value={inputMessage}
-            onChange={handleInputChange}
-            onKeyPress={handleKeyPress}
-            onFocus={handleInputFocus}
-            placeholder="Type your message here..."
-            className="message-input"
-            rows="1"
-            disabled={loading}
-          />
-          <button
-            type="submit"
-            className="send-button"
-            disabled={!inputMessage.trim() || loading}
-          >
-            <Send size={18} />
-          </button>
+      {isLimitReached ? (
+        <div className="conversation-limit-message">
+          <p>
+            <strong>
+              You have reached the limit of 20 messages. Please open another
+              conversation.
+            </strong>
+          </p>
         </div>
-      </form>
+      ) : (
+        <form className="input-form" onSubmit={handleSubmit}>
+          <div className="input-container" onClick={handleContainerClick}>
+            <textarea
+              ref={inputRef}
+              value={inputMessage}
+              onChange={handleInputChange}
+              onKeyPress={handleKeyPress}
+              onFocus={handleInputFocus}
+              placeholder="Type your message here..."
+              className="message-input"
+              rows="1"
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              className="send-button"
+              disabled={!inputMessage.trim() || loading}
+            >
+              <Send size={18} />
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 };
