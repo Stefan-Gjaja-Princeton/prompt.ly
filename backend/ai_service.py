@@ -167,16 +167,22 @@ EXAMPLES OF HIGH SCORES:
 
 Provide:
 1. A numerical score (1-10) - be strict!
-2. Specific, actionable feedback on how to improve their prompting, especially in the areas where they are most lacking.
-3. Reference conversation history in your feedback
-4. Be really specific and provide examples of better kinds of prompts. 
-5. Keep feedback under 200 words, structure it so it's easy to digest, and use "you" to refer to the user rather than third person.
-
+2. A quality label: "Poor" (1-3), "Fair" (4-6), "Good" (7-8), or "Excellent" (9-10)
+3. The word count of the user's latest message
+4. Exactly 3 improvement tips as an array of strings - be specific and actionable
+5. An example improved prompt that demonstrates how the user could have written their message better
 
 Format your response as JSON:
 {{
     "score": [number],
-    "feedback": "[specific actionable advice referencing conversation context]"
+    "quality_label": "[Poor|Fair|Good|Excellent]",
+    "word_count": [number],
+    "improvement_tips": [
+        "[first specific actionable tip]",
+        "[second specific actionable tip]",
+        "[third specific actionable tip]"
+    ],
+    "example_improved_prompt": "[a concrete example of how the user could improve their prompt]"
 }}"""
         
         try:
@@ -212,14 +218,37 @@ Format your response as JSON:
                 # Use current message score as quality score
                 quality_score = current_message_score
                 
-                feedback = feedback_data.get('feedback', 'No specific feedback available.')
+                # Build feedback object with new structure
+                feedback = {
+                    'quality_label': feedback_data.get('quality_label', 'Fair'),
+                    'word_count': feedback_data.get('word_count', 0),
+                    'improvement_tips': feedback_data.get('improvement_tips', [
+                        'Be more specific in your requests',
+                        'Provide context from previous messages',
+                        'Ask clear, focused questions'
+                    ]),
+                    'example_improved_prompt': feedback_data.get('example_improved_prompt', 'No example available')
+                }
                 
-                # Clean up any JSON artifacts that might have leaked into feedback - was in response to UI poroblems
-                feedback = feedback.replace('```json', '').replace('```', '').strip()
-                
-                # Add conversation context to feedback
-                if conversation_depth > 3:
-                    feedback += f"\n\nNote: This is message #{conversation_depth}. Your current quality score is {quality_score}/10."
+                # Ensure improvement_tips is a list with exactly 3 items
+                if not isinstance(feedback['improvement_tips'], list):
+                    feedback['improvement_tips'] = [
+                        'Be more specific in your requests',
+                        'Provide context from previous messages',
+                        'Ask clear, focused questions'
+                    ]
+                elif len(feedback['improvement_tips']) < 3:
+                    # Pad with generic tips if less than 3
+                    generic_tips = [
+                        'Be more specific in your requests',
+                        'Provide context from previous messages',
+                        'Ask clear, focused questions'
+                    ]
+                    while len(feedback['improvement_tips']) < 3:
+                        feedback['improvement_tips'].append(generic_tips[len(feedback['improvement_tips'])])
+                elif len(feedback['improvement_tips']) > 3:
+                    # Take only first 3 if more than 3
+                    feedback['improvement_tips'] = feedback['improvement_tips'][:3]
                 
                 return quality_score, feedback, current_message_score
                 

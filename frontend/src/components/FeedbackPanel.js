@@ -4,15 +4,8 @@
 
 // also a huge priority for modification
 import React from "react";
-import {
-  TrendingUp,
-  TrendingDown,
-  Target,
-  Lightbulb,
-  AlertCircle,
-} from "lucide-react";
+import { Gauge, ListChecks, Lightbulb } from "lucide-react";
 import "./FeedbackPanel.css";
-import { renderMarkdown } from "../utils/markdown";
 
 const FeedbackPanel = ({
   qualityScore,
@@ -22,158 +15,160 @@ const FeedbackPanel = ({
 }) => {
   const getScoreColor = (score) => {
     if (score === null) return "#6c757d"; // Gray for no score
-    if (score >= 8) return "#28a745";
-    if (score >= 6) return "#ffc107";
-    if (score >= 4) return "#fd7e14";
+    if (score >= 8) return "#004600";
+    if (score >= 6) return "#fdb515";
+    if (score >= 4) return "#f28500";
     return "#dc3545";
   };
 
-  const getScoreLabel = (score) => {
-    if (score === null) return "No Score Yet";
-    if (score >= 8) return "Excellent";
-    if (score >= 6) return "Good";
-    if (score >= 4) return "Fair";
-    return "Poor";
+  const getScorePercentage = (score) => {
+    if (score === null) return 0;
+    return (score / 10) * 100;
   };
 
-  const getScoreIcon = (score) => {
-    if (score === null) return null; // No icon for no score
-    if (score >= 6) return <TrendingUp size={16} />;
-    return <TrendingDown size={16} />;
-  };
-
-  // going to change this to get more specific advice
-  const getQualityAdvice = (score) => {
-    if (score === null) {
-      return "Submit your first message to get your prompt quality score and personalized feedback!";
-    } else if (score >= 8) {
-      return "Excellent! Your prompts show strong specificity, context awareness, and critical thinking.";
-    } else if (score >= 6) {
-      return "Good prompting! Consider adding more context and building on previous conversation.";
-    } else if (score >= 4) {
-      return "Your prompts need improvement. Be more specific and reference previous context.";
-    } else if (score >= 2) {
-      return "Poor prompting quality. Provide specific details and context. What exactly do you need?";
-    } else {
-      return "Very poor prompting. Be much more specific and provide context. Avoid vague requests.";
+  // Extract feedback data - handle both old string format and new object format
+  const feedbackData = React.useMemo(() => {
+    if (!feedback) {
+      return {
+        quality_label: null,
+        word_count: 0,
+        improvement_tips: [],
+        example_improved_prompt: null,
+      };
     }
-  };
+
+    // If feedback is a string (old format), return defaults
+    if (typeof feedback === "string") {
+      return {
+        quality_label: null,
+        word_count: 0,
+        improvement_tips: [],
+        example_improved_prompt: null,
+      };
+    }
+
+    // If feedback is an object (new format), use it directly
+    return {
+      quality_label: feedback.quality_label || null,
+      word_count: feedback.word_count || 0,
+      improvement_tips: Array.isArray(feedback.improvement_tips)
+        ? feedback.improvement_tips
+        : [],
+      example_improved_prompt: feedback.example_improved_prompt || null,
+    };
+  }, [feedback]);
 
   return (
     <div className="feedback-panel">
       <div className="feedback-header">
-        <h2>Quality Feedback</h2>
-        <div className="feedback-subtitle">Real-time prompt analysis</div>
+        <h2>Prompt Quality Feedback</h2>
       </div>
 
       <div className="feedback-content">
-        {/* Quality Score Section */}
+        {/* Quality Score Section with Horizontal Bar */}
         <div className="score-section">
-          <div className="score-header">
-            <Target size={20} />
-            <span>Current Score</span>
+          <div className="score-section-header">
+            <Gauge size={20} />
+            <h3>Prompt Score</h3>
           </div>
-
-          <div className="score-display">
-            {loading ? (
-              <div className="score-circle loading">
-                <div className="score-inner">
-                  <div className="loading-spinner"></div>
+          {loading ? (
+            <div className="quality-bar-container">
+              <div className="quality-bar-wrapper">
+                <div className="quality-bar-fill loading-bar">
+                  <span className="quality-score-overlay">—/10</span>
                 </div>
               </div>
-            ) : (
-              <div
-                className="score-circle"
-                style={{
-                  background:
-                    qualityScore === null
-                      ? `conic-gradient(#e0e0e0 360deg, #e0e0e0 0deg)`
-                      : `conic-gradient(${getScoreColor(qualityScore)} ${
-                          qualityScore * 36
-                        }deg, #e0e0e0 0deg)`,
-                }}
-              >
-                <div className="score-inner">
-                  <span className="score-number">
-                    {qualityScore === null ? "—" : qualityScore.toFixed(1)}
-                  </span>
-                  <span className="score-max">/10</span>
-                </div>
-              </div>
-            )}
-
-            <div className="score-info">
-              {loading ? (
-                <div className="score-label loading-text">
-                  <div className="loading-dots">Analyzing prompt...</div>
-                </div>
-              ) : (
-                <>
-                  <div
-                    className="score-label"
-                    style={{ color: getScoreColor(qualityScore) }}
-                  >
-                    {getScoreIcon(qualityScore)}
-                    {getScoreLabel(qualityScore)}
-                  </div>
-                  <div className="score-advice">
-                    {getQualityAdvice(qualityScore)}
-                  </div>
-                </>
-              )}
+              <div className="quality-label">Loading...</div>
             </div>
-          </div>
+          ) : qualityScore === null ? (
+            <div className="quality-bar-container">
+              <div className="quality-bar-wrapper">
+                <div className="quality-bar-fill empty-bar"></div>
+                <span className="quality-score-overlay empty-score">—/10</span>
+              </div>
+              <div className="quality-label">—</div>
+            </div>
+          ) : (
+            <div className="quality-bar-container">
+              <div className="quality-bar-wrapper">
+                <div
+                  className="quality-bar-fill"
+                  style={{
+                    width: `${getScorePercentage(qualityScore)}%`,
+                    backgroundColor: getScoreColor(qualityScore),
+                  }}
+                >
+                  <span className="quality-score-overlay">
+                    {qualityScore.toFixed(1)}/10
+                  </span>
+                </div>
+              </div>
+              <div className="quality-label">
+                {feedbackData.quality_label ||
+                  (qualityScore >= 8
+                    ? "Excellent"
+                    : qualityScore >= 6
+                    ? "Good"
+                    : qualityScore >= 4
+                    ? "Fair"
+                    : "Poor")}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Terse Mode Warning */}
-        {isTerse && qualityScore !== null && (
-          <div className="terse-warning">
-            <AlertCircle size={16} />
-            <div>
-              <strong>Response Quality Reduced</strong>
-              <p>
-                {qualityScore <= 3
-                  ? "AI responses are very limited due to poor prompt quality. Be much more specific and provide context."
-                  : "AI responses are limited due to below-average prompt quality. Improve specificity and context awareness."}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Feedback Section */}
-        <div className="feedback-section">
-          <div className="feedback-header-section">
-            <Lightbulb size={20} />
+        {/* Improvement Tips Section */}
+        <div className="improvement-tips-section">
+          <div className="improvement-tips-header">
+            <ListChecks size={20} />
             <span>Improvement Tips</span>
           </div>
-
-          <div className="feedback-text">
-            {qualityScore === null
-              ? "Send your first message to get personalized feedback on your prompting style!"
-              : renderMarkdown(
-                  feedback ||
-                    "Send a message to get personalized feedback on your prompting style."
-                )}
-          </div>
+          {loading ? (
+            <div className="empty-section-message">
+              Analyzing your prompt...
+            </div>
+          ) : qualityScore === null ? (
+            <div className="empty-section-message">
+              Send a message to receive personalized improvement tips.
+            </div>
+          ) : (
+            <ul className="improvement-tips-list">
+              {feedbackData.improvement_tips.length > 0 ? (
+                feedbackData.improvement_tips.map((tip, index) => (
+                  <li key={index}>{tip}</li>
+                ))
+              ) : (
+                <>
+                  <li>Be more specific in your requests</li>
+                  <li>Provide context from previous messages</li>
+                  <li>Ask clear, focused questions</li>
+                </>
+              )}
+            </ul>
+          )}
         </div>
 
-        {/* Quick Tips */}
-        <div className="tips-section">
-          <h3>Scoring Criteria</h3>
-          <ul className="tips-list">
-            <li>
-              <strong>Specificity:</strong> Be specific and detailed
-            </li>
-            <li>
-              <strong>Critical Thinking:</strong> Show analysis and reasoning
-            </li>
-            <li>
-              <strong>Conceptual Understanding:</strong> Know your stuff
-            </li>
-            <li>
-              <strong>Self-direction:</strong> DIY!
-            </li>
-          </ul>
+        {/* Example Improved Prompt Section */}
+        <div className="example-prompt-section">
+          <div className="example-prompt-header">
+            <Lightbulb size={20} />
+            <span>Example Improved Prompt</span>
+          </div>
+          {loading ? (
+            <div className="empty-section-message">Generating example...</div>
+          ) : qualityScore === null ? (
+            <div className="empty-section-message">
+              Send a message to see an example of an improved prompt.
+            </div>
+          ) : feedbackData.example_improved_prompt ? (
+            <div className="example-prompt-text">
+              {feedbackData.example_improved_prompt}
+            </div>
+          ) : (
+            <div className="empty-section-message">
+              No example available for this prompt.
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ from auth_service import require_auth
 import uuid
 from datetime import datetime
 import os
+import json
 
 app = Flask(__name__)
 
@@ -266,8 +267,10 @@ def send_message(conversation_id):
         quality_score, feedback, current_message_score = ai_service.get_feedback_response(messages, previous_scores)
         
         # Update conversation with new messages, quality score, and feedback FIRST
+        # Serialize feedback dict to JSON string for storage
         new_message_scores = previous_scores + [current_message_score]
-        db.update_conversation(conversation_id, messages, quality_score, new_message_scores, feedback)
+        feedback_json = json.dumps(feedback) if isinstance(feedback, dict) else feedback
+        db.update_conversation(conversation_id, messages, quality_score, new_message_scores, feedback_json)
         
         # Return feedback immediately (before AI response)
         return jsonify({
@@ -376,7 +379,9 @@ def get_ai_response(conversation_id):
         
         # Update conversation with AI response (preserve existing feedback)
         existing_feedback = conversation.get('feedback')
-        db.update_conversation(conversation_id, messages, current_quality_score, conversation.get('message_scores', []), existing_feedback)
+        # Serialize feedback if it's a dict
+        existing_feedback_json = json.dumps(existing_feedback) if isinstance(existing_feedback, dict) else existing_feedback
+        db.update_conversation(conversation_id, messages, current_quality_score, conversation.get('message_scores', []), existing_feedback_json)
         
         return jsonify({
             "ai_response": ai_response,

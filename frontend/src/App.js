@@ -29,7 +29,7 @@ function App() {
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [qualityScore, setQualityScore] = useState(null);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState(null);
   const [isTerse, setIsTerse] = useState(false);
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -60,7 +60,7 @@ function App() {
         const data = await apiService.getConversation(conversationId);
         setMessages(data.messages || []);
         setQualityScore(data.quality_score);
-        setFeedback(data.feedback || ""); // Load feedback from conversation
+        setFeedback(data.feedback || null); // Load feedback from conversation
         setIsTerse(data.quality_score !== null && data.quality_score <= 5.0);
       } catch (error) {
         console.error("Error loading conversation:", error);
@@ -111,7 +111,7 @@ function App() {
       setCurrentConversationId(data.conversation_id);
       setMessages([]);
       setQualityScore(null);
-      setFeedback("");
+      setFeedback(null);
       setIsTerse(false);
 
       return data.conversation_id;

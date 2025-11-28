@@ -464,12 +464,21 @@ class Database:
                     except json.JSONDecodeError:
                         message_scores = []
                 
+                # Deserialize feedback if it's a JSON string
+                feedback = None
+                if len(result) > 3 and result[3]:
+                    try:
+                        feedback = json.loads(result[3])
+                    except (json.JSONDecodeError, TypeError):
+                        # If it's not JSON, treat it as a plain string (backward compatibility)
+                        feedback = result[3]
+                
                 return {
                     'conversation_id': conversation_id,
                     'user_email': result[0],
                     'messages': json.loads(result[1]),
                     'quality_score': result[2] if result[2] is not None else None,
-                    'feedback': result[3] if len(result) > 3 and result[3] else None,
+                    'feedback': feedback,
                     'message_scores': message_scores
                 }
             return None
