@@ -97,17 +97,12 @@ class AuthService:
         picture = payload.get('picture')
         nickname = payload.get('nickname')
         
-        # Debug: Log what's in the access token
-        print(f"DEBUG: Access token claims - email: {bool(email)}, name: {name}, picture: {bool(picture)}, nickname: {nickname}")
-        print(f"DEBUG: Available token claims: {list(payload.keys())}")
-        
         # Access tokens often don't include profile info (name, picture)
         # Always try to get complete profile from /userinfo if profile data is missing
         has_name = name and (isinstance(name, str) and name.strip() != '')
         needs_userinfo = not email or not has_name or not picture
         
         if needs_userinfo:
-            print(f"DEBUG: Missing profile data (email: {bool(email)}, name: {name}, picture: {bool(picture)}) - fetching from /userinfo endpoint...")
             try:
                 userinfo_url = f"https://{self.domain}/userinfo"
                 headers = {'Authorization': authorization_header}
@@ -115,7 +110,6 @@ class AuthService:
                 
                 if resp.status_code == 200:
                     ui = resp.json()
-                    print(f"DEBUG: /userinfo response: {list(ui.keys())}")
                     # Use userinfo data, preferring it over token data
                     email = ui.get('email') or email
                     userinfo_name = ui.get('name')
@@ -125,7 +119,6 @@ class AuthService:
                     # Only update if we got better data
                     if userinfo_name and (not name or (isinstance(name, str) and name.strip() == '')):
                         name = userinfo_name
-                        print(f"DEBUG: Updated name from userinfo: {name}")
                     if userinfo_picture and not picture:
                         picture = userinfo_picture
                     if userinfo_nickname and not nickname:

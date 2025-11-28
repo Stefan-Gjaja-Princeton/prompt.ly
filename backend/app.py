@@ -149,12 +149,6 @@ def get_user_profile():
                 should_update = True
             
             if should_update:
-                print(f"DEBUG: Updating user profile for {email}")
-                print(f"DEBUG:   first_name: {existing_user.get('first_name')} -> {update_first_name}")
-                print(f"DEBUG:   last_name: {existing_user.get('last_name')} -> {update_last_name}")
-                print(f"DEBUG:   google_id: {existing_user.get('google_id')} -> {update_google_id}")
-                print(f"DEBUG:   picture: {bool(existing_user.get('profile_picture_url'))} -> {bool(update_picture)}")
-                
                 db.update_user_profile(
                     email=email,
                     first_name=update_first_name,
@@ -162,7 +156,6 @@ def get_user_profile():
                     google_id=update_google_id,
                     profile_picture_url=update_picture
                 )
-                print(f"DEBUG: Profile updated successfully for {email}")
                 # Refresh user data after update
                 existing_user = db.get_user_by_email(email)
             else:
@@ -335,11 +328,9 @@ def get_ai_response(conversation_id):
         # Update if name is missing in database
         if not db_first_name and auth0_first_name and auth0_first_name != email_prefix:
             should_update_profile = True
-            print(f"DEBUG: Name missing in database but found in Auth0 ({auth0_first_name}). Updating profile...")
         # Update if Auth0 has a real name but database has email prefix
         elif db_first_name == email_prefix and auth0_first_name and auth0_first_name != email_prefix:
             should_update_profile = True
-            print(f"DEBUG: Database has email prefix, but Auth0 has real name ({auth0_first_name}). Updating profile...")
         
         if should_update_profile and user_from_db:
             try:
@@ -350,18 +341,11 @@ def get_ai_response(conversation_id):
                     google_id=user_data.get('sub'),
                     profile_picture_url=user_data.get('picture')
                 )
-                print(f"DEBUG: Profile updated - first_name: {auth0_first_name}, last_name: {auth0_last_name}")
                 # Refresh from database after update
                 user_from_db = db.get_user_by_email(user_email)
                 first_name = extract_user_name(user_data, user_from_db)
             except Exception as e:
                 print(f"WARNING: Failed to update profile: {e}")
-        
-        print(f"DEBUG: Getting AI response for conversation {conversation_id}")
-        print(f"DEBUG: Messages count: {len(messages)}")
-        print(f"DEBUG: Quality score: {current_quality_score}")
-        print(f"DEBUG: User name: {first_name}")
-        print(f"DEBUG: Last message: {messages[-1] if messages else 'None'}")
         
         # Get AI response using the current score
         try:
