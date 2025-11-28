@@ -168,15 +168,13 @@ EXAMPLES OF HIGH SCORES:
 Provide:
 1. A numerical score (1-10) - be strict!
 2. A quality label: "Poor" (1-4), "Fair" (4.1-6), "Good" (6.1-8), or "Excellent" (8.1-10)
-3. The word count of the user's latest message
-4. Exactly 3 improvement tips as an array of strings - be specific and actionable
-5. An example improved prompt that demonstrates how the user could have written their message better
+3. Exactly 3 improvement tips as an array of strings - be specific and actionable
+4. An example improved prompt that demonstrates how the user could have written their message better
 
 Format your response as JSON:
 {{
     "score": [number],
     "quality_label": "[Poor|Fair|Good|Excellent]",
-    "word_count": [number],
     "improvement_tips": [
         "[first specific actionable tip]",
         "[second specific actionable tip]",
@@ -221,7 +219,6 @@ Format your response as JSON:
                 # Build feedback object with new structure
                 feedback = {
                     'quality_label': feedback_data.get('quality_label', 'Fair'),
-                    'word_count': feedback_data.get('word_count', 0),
                     'improvement_tips': feedback_data.get('improvement_tips', [
                         'Be more specific in your requests',
                         'Provide context from previous messages',

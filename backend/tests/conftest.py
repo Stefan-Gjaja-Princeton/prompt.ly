@@ -53,7 +53,6 @@ def test_db(monkeypatch):
                         last_name TEXT,
                         google_id TEXT,
                         profile_picture_url TEXT,
-                        conversation_ids TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )

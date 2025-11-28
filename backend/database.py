@@ -137,7 +137,6 @@ class Database:
             if self.use_postgres:
                 # PostgreSQL table creation
                 # Create users table
-                # will probably take out the conversation_ids list because not actually helpful
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS users (
                         email VARCHAR(255) PRIMARY KEY,
@@ -145,7 +144,6 @@ class Database:
                         last_name VARCHAR(255),
                         google_id VARCHAR(255),
                         profile_picture_url TEXT,
-                        conversation_ids TEXT DEFAULT '[]',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
@@ -175,7 +173,6 @@ class Database:
                         last_name TEXT,
                         google_id TEXT,
                         profile_picture_url TEXT,
-                        conversation_ids TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
@@ -230,13 +227,13 @@ class Database:
             
             if self.use_postgres:
                 cursor.execute(
-                    "INSERT INTO users (email, first_name, last_name, google_id, profile_picture_url, conversation_ids) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (email) DO NOTHING",
-                    (email, first_name, last_name, google_id, profile_picture_url, json.dumps([]))
+                    "INSERT INTO users (email, first_name, last_name, google_id, profile_picture_url) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (email) DO NOTHING",
+                    (email, first_name, last_name, google_id, profile_picture_url)
                 )
             else:
                 cursor.execute(
-                    "INSERT OR IGNORE INTO users (email, first_name, last_name, google_id, profile_picture_url, conversation_ids) VALUES (?, ?, ?, ?, ?, ?)",
-                    (email, first_name, last_name, google_id, profile_picture_url, json.dumps([]))
+                    "INSERT OR IGNORE INTO users (email, first_name, last_name, google_id, profile_picture_url) VALUES (?, ?, ?, ?, ?)",
+                    (email, first_name, last_name, google_id, profile_picture_url)
                 )
             
             conn.commit()
@@ -356,21 +353,25 @@ class Database:
                 conn.close()
     
     def get_user_conversations(self, email: str) -> List[str]:
-        """Get all conversation IDs for a user"""
+        """Get all conversation IDs for a user by querying conversations table"""
         conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             
             if self.use_postgres:
-                cursor.execute("SELECT conversation_ids FROM users WHERE email = %s", (email,))
+                cursor.execute("SELECT conversation_id FROM conversations WHERE user_email = %s ORDER BY updated_at DESC", (email,))
             else:
-                cursor.execute("SELECT conversation_ids FROM users WHERE email = ?", (email,))
+                cursor.execute("SELECT conversation_id FROM conversations WHERE user_email = ? ORDER BY updated_at DESC", (email,))
             
-            result = cursor.fetchone()
+            results = cursor.fetchall()
             
-            if result and result[0]:
-                return json.loads(result[0])
+            if results:
+                # Extract conversation IDs from results
+                if self.use_postgres:
+                    return [row[0] for row in results]
+                else:
+                    return [row[0] for row in results]
             return []
         except Exception as e:
             print(f"Error getting user conversations: {e}")
@@ -386,13 +387,7 @@ class Database:
             conn = self._get_connection()
             cursor = conn.cursor()
             
-            # Start transaction - won't need this if I remove the redundant data
-            if self.use_postgres:
-                cursor.execute("BEGIN")
-            else:
-                cursor.execute("BEGIN TRANSACTION")
-            
-            # Create conversation
+            # Create conversation directly in conversations table
             if self.use_postgres:
                 cursor.execute(
                     "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (%s, %s, %s)",
@@ -403,27 +398,6 @@ class Database:
                     "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (?, ?, ?)",
                     (conversation_id, email, json.dumps([]))
                 )
-            
-            # Update user's conversation list
-            conversations = self.get_user_conversations(email)
-            conversations.append(conversation_id)
-            
-            if self.use_postgres:
-                cursor.execute(
-                    "UPDATE users SET conversation_ids = %s WHERE email = %s",
-                    (json.dumps(conversations), email)
-                )
-            else:
-                cursor.execute(
-                    "UPDATE users SET conversation_ids = ? WHERE email = ?",
-                    (json.dumps(conversations), email)
-                )
-            
-            # Commit transaction
-            if self.use_postgres:
-                cursor.execute("COMMIT")
-            else:
-                cursor.execute("COMMIT")
             
             conn.commit()
             return True
