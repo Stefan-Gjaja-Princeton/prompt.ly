@@ -20,15 +20,9 @@ const ChatWindow = ({
   const [userImageError, setUserImageError] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const previousMessageCountRef = useRef(0);
 
   // Handle copy button clicks for code blocks
   useEffect(() => {
@@ -68,6 +62,29 @@ const ChatWindow = ({
     return () => {
       document.removeEventListener("click", handleCopyClick);
     };
+  }, [messages]);
+
+  // Scroll to the very bottom when a new user message is added
+  useEffect(() => {
+    if (!messages || messages.length === 0) {
+      previousMessageCountRef.current = 0;
+      return;
+    }
+
+    const prevCount = previousMessageCountRef.current;
+    const newCount = messages.length;
+    const lastMessage = messages[newCount - 1];
+
+    previousMessageCountRef.current = newCount;
+
+    if (newCount > prevCount && lastMessage?.role === "user") {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "end",
+        });
+      }
+    }
   }, [messages]);
 
   const handleSubmit = (e) => {
@@ -155,7 +172,7 @@ const ChatWindow = ({
         )}
       </div>
 
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef}>
         {messages.length === 0 ? (
           <div className="empty-chat">
             <img src={logo} alt="Prompt.ly" className="empty-logo" />
@@ -166,45 +183,51 @@ const ChatWindow = ({
             </p>
           </div>
         ) : (
-          messages.map((message, index) => (
-            <div
-              key={index}
-              className={`message ${
-                message.role === "user" ? "user-message" : "ai-message"
-              }`}
-            >
-              <div className="message-avatar">
-                {message.role === "user" ? (
-                  user?.picture && !userImageError ? (
-                    <img
-                      src={user.picture}
-                      alt={user.name || "User"}
-                      className="user-avatar-image"
-                      crossOrigin="anonymous"
-                      referrerPolicy="no-referrer"
-                      onError={() => setUserImageError(true)}
-                    />
+          messages
+            .filter((message) => message.content && message.content.trim())
+            .map((message, index) => (
+              <div
+                key={index}
+                className={`message ${
+                  message.role === "user" ? "user-message" : "ai-message"
+                }`}
+              >
+                <div className="message-avatar">
+                  {message.role === "user" ? (
+                    user?.picture && !userImageError ? (
+                      <img
+                        src={user.picture}
+                        alt={user.name || "User"}
+                        className="user-avatar-image"
+                        crossOrigin="anonymous"
+                        referrerPolicy="no-referrer"
+                        onError={() => setUserImageError(true)}
+                      />
+                    ) : (
+                      <div className="user-avatar-fallback">
+                        <User size={24} />
+                      </div>
+                    )
                   ) : (
-                    <div className="user-avatar-fallback">
-                      <User size={24} />
-                    </div>
-                  )
-                ) : (
-                  <PromptlyMascot size={24} />
-                )}
-              </div>
-              <div className="message-content">
-                <div className="message-text">
-                  {renderMarkdown(message.content)}
+                    <PromptlyMascot size={24} />
+                  )}
                 </div>
-                <div className="message-time">
-                  {formatTime(message.timestamp)}
+                <div className="message-content">
+                  <div
+                    className={`message-text ${
+                      message._streaming ? "streaming" : ""
+                    }`}
+                  >
+                    {renderMarkdown(message.content)}
+                  </div>
+                  <div className="message-time">
+                    {formatTime(message.timestamp)}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            ))
         )}
-        {loading && (
+        {loading && !messages.some((msg) => msg._streaming) && (
           <div className="message ai-message">
             <div className="message-avatar">
               <PromptlyMascot size={24} />

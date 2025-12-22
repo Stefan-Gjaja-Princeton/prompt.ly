@@ -13,6 +13,10 @@
   padding: 20px;
   border-bottom: 1px solid #e0e0e0;
   background-color: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
 }
 
 .feedback-header h2 {
@@ -25,6 +29,110 @@
 .feedback-subtitle {
   font-size: 12px;
   color: #666;
+}
+
+.feedback-info-button {
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #8a8a8a;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  align-self: center;
+  line-height: 0;
+  /* Nudge slightly to visually center with text baseline */
+  transform: translateY(-1px);
+}
+
+.feedback-info-button:hover {
+  background-color: #e9ecef;
+  color: #222;
+  transform: translateY(-1px);
+}
+
+.feedback-info-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.feedback-info-modal {
+  position: relative;
+  max-width: 480px;
+  width: 90%;
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.3);
+  padding: 20px 24px 22px;
+}
+
+.feedback-info-modal h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.feedback-info-modal p {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.feedback-info-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: none;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 4px;
+  border-radius: 999px;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.feedback-info-close:hover {
+  background-color: #e5e7eb;
+  color: #111827;
+  transform: translateY(-1px);
+}
+
+.feedback-info-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-info-list li {
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.feedback-info-list strong {
+  font-weight: 600;
+}
+
+.feedback-info-good {
+  color: #166534;
+}
+
+.feedback-info-bad {
+  color: #b91c1c;
 }
 
 .feedback-content {

@@ -4,7 +4,7 @@
 
 // also a huge priority for modification
 import React from "react";
-import { Gauge, ListChecks, Lightbulb } from "lucide-react";
+import { Gauge, ListChecks, Lightbulb, Info } from "lucide-react";
 import "./FeedbackPanel.css";
 
 const FeedbackPanel = ({
@@ -58,10 +58,23 @@ const FeedbackPanel = ({
     };
   }, [feedback]);
 
+  const [isInfoOpen, setIsInfoOpen] = React.useState(false);
+
+  const openInfo = () => setIsInfoOpen(true);
+  const closeInfo = () => setIsInfoOpen(false);
+
   return (
     <div className="feedback-panel">
       <div className="feedback-header">
         <h2>Prompt Quality Feedback</h2>
+        <button
+          type="button"
+          className="feedback-info-button"
+          onClick={openInfo}
+          aria-label="How prompt scoring works"
+        >
+          <Info size={18} />
+        </button>
       </div>
 
       <div className="feedback-content">
@@ -171,6 +184,86 @@ const FeedbackPanel = ({
           )}
         </div>
       </div>
+
+      {isInfoOpen && (
+        <div className="feedback-info-backdrop" onClick={closeInfo}>
+          <div
+            className="feedback-info-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="feedback-info-close"
+              onClick={closeInfo}
+              aria-label="Close prompt scoring information"
+            >
+              ×
+            </button>
+            <h3>How prompt scoring works</h3>
+            <p>prompt.ly scores your prompt using 4 criteria:</p>
+            <ul className="feedback-info-list">
+              <li>
+                <strong>Specificity</strong> – How specific and detailed is your
+                request?
+                <br />
+                <span className="feedback-info-good">
+                  Good: &quot;Summarize the key findings around copyright
+                  infringement from the research paper I shared about AI ethics,
+                  with quotes.&quot;
+                </span>
+                <br />
+                <span className="feedback-info-bad">
+                  Bad: &quot;Summarize this.&quot;
+                </span>
+              </li>
+              <li>
+                <strong>Critical Thinking</strong> – Does your prompt involve
+                analysis or reasoning, instead of just asking for a direct,
+                copy-and-paste answer?
+                <br />
+                <span className="feedback-info-good">
+                  Good: &quot;Based on our discussion about machine learning,
+                  compare how neural networks and decision trees differ in terms
+                  of interpretability for medical diagnosis.&quot;
+                </span>
+                <br />
+                <span className="feedback-info-bad">
+                  Bad: &quot;Do this assignment for me.&quot;
+                </span>
+              </li>
+              <li>
+                <strong>Conceptual Understanding</strong> – Do you show that you
+                understand the topic you&apos;re asking about?
+                <br />
+                <span className="feedback-info-good">
+                  Good: &quot;I&apos;m building a logistic regression model for
+                  rare events. Can you help me interpret the coefficients and
+                  odds ratios correctly?&quot;
+                </span>
+                <br />
+                <span className="feedback-info-bad">
+                  Bad: &quot;Explain this math thing for me&quot; (with no
+                  terminology or context).
+                </span>
+              </li>
+              <li>
+                <strong>Self-Direction</strong> – Are you working with the AI,
+                instead of asking it to do everything for you?
+                <br />
+                <span className="feedback-info-good">
+                  Good: &quot;I&apos;ll draft the introduction based on my
+                  notes. Can you suggest 3 ways to tighten the methods section
+                  and flag any missing details?&quot;
+                </span>
+                <br />
+                <span className="feedback-info-bad">
+                  Bad: &quot;Write my entire project report for me.&quot;
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

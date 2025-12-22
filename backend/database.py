@@ -209,6 +209,23 @@ class Database:
                 except sqlite3.OperationalError:
                     pass  # Column already exists
             
+            # Add title column if it doesn't exist
+            if self.use_postgres:
+                # PostgreSQL: Check if column exists
+                cursor.execute('''
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='conversations' AND column_name='title'
+                ''')
+                if not cursor.fetchone():
+                    cursor.execute('ALTER TABLE conversations ADD COLUMN title TEXT DEFAULT NULL')
+            else:
+                # SQLite: Try to add column (will fail silently if exists)
+                try:
+                    cursor.execute('ALTER TABLE conversations ADD COLUMN title TEXT DEFAULT NULL')
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
+            
             conn.commit()
         except Exception as e:
             print(f"Error initializing database: {e}")
@@ -419,12 +436,12 @@ class Database:
             
             if self.use_postgres:
                 cursor.execute(
-                    "SELECT user_email, messages, current_quality_score, current_feedback, message_scores FROM conversations WHERE conversation_id = %s",
+                    "SELECT user_email, messages, current_quality_score, current_feedback, message_scores, title FROM conversations WHERE conversation_id = %s",
                     (conversation_id,)
                 )
             else:
                 cursor.execute(
-                    "SELECT user_email, messages, current_quality_score, current_feedback, message_scores FROM conversations WHERE conversation_id = ?",
+                    "SELECT user_email, messages, current_quality_score, current_feedback, message_scores, title FROM conversations WHERE conversation_id = ?",
                     (conversation_id,)
                 )
             
@@ -453,7 +470,8 @@ class Database:
                     'messages': json.loads(result[1]),
                     'quality_score': result[2] if result[2] is not None else None,
                     'feedback': feedback,
-                    'message_scores': message_scores
+                    'message_scores': message_scores,
+                    'title': result[5] if len(result) > 5 else None
                 }
             return None
         except Exception as e:
@@ -463,8 +481,8 @@ class Database:
             if conn:
                 conn.close()
     
-    def update_conversation(self, conversation_id: str, messages: List[Dict], quality_score: float, message_scores: List[float] = None, feedback: str = None):
-        """Update conversation with new messages, quality score, and feedback"""
+    def update_conversation(self, conversation_id: str, messages: List[Dict], quality_score: float, message_scores: List[float] = None, feedback: str = None, title: str = None):
+        """Update conversation with new messages, quality score, feedback, and optionally title"""
         conn = None
         try:
             conn = self._get_connection()
@@ -473,16 +491,29 @@ class Database:
             # Handle message scores
             scores_json = json.dumps(message_scores) if message_scores else None
             
-            if self.use_postgres:
-                cursor.execute(
-                    "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
-                    (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
-                )
+            # Build update query - only update title if provided
+            if title is not None:
+                if self.use_postgres:
+                    cursor.execute(
+                        "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, title = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                        (json.dumps(messages), quality_score, feedback, scores_json, title, conversation_id)
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                        (json.dumps(messages), quality_score, feedback, scores_json, title, conversation_id)
+                    )
             else:
-                cursor.execute(
-                    "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
-                    (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
-                )
+                if self.use_postgres:
+                    cursor.execute(
+                        "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                        (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                        (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
+                    )
             
             conn.commit()
         except Exception as e:
@@ -502,12 +533,12 @@ class Database:
             
             if self.use_postgres:
                 cursor.execute(
-                    "SELECT user_email, messages, created_at, updated_at FROM conversations WHERE conversation_id = %s",
+                    "SELECT user_email, messages, title, created_at, updated_at FROM conversations WHERE conversation_id = %s",
                     (conversation_id,)
                 )
             else:
                 cursor.execute(
-                    "SELECT user_email, messages, created_at, updated_at FROM conversations WHERE conversation_id = ?",
+                    "SELECT user_email, messages, title, created_at, updated_at FROM conversations WHERE conversation_id = ?",
                     (conversation_id,)
                 )
             
@@ -515,13 +546,15 @@ class Database:
             
             if result:
                 messages = json.loads(result[1])
-                first_message = messages[0]['content'] if messages else "New conversation"
+                # Just return the stored title from database (or None if not set)
+                stored_title = result[2]
+                
                 return {
                     'conversation_id': conversation_id,
                     'user_email': result[0],
-                    'title': first_message[:50] + "..." if len(first_message) > 50 else first_message,
-                    'created_at': str(result[2]) if result[2] else None,
-                    'updated_at': str(result[3]) if result[3] else None,
+                    'title': stored_title,  # Return stored title or None
+                    'created_at': str(result[3]) if result[3] else None,
+                    'updated_at': str(result[4]) if result[4] else None,
                     'message_count': len(messages)
                 }
             return None

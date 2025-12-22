@@ -213,26 +213,101 @@ function App() {
           feedbackResponse.quality_score <= 5.0
       );
 
+      // Update conversation title in the list if it was generated
+      if (feedbackResponse.title) {
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.conversation_id === activeConversationId
+              ? { ...conv, title: feedbackResponse.title }
+              : conv
+          )
+        );
+      }
+
       // Stop feedback loading immediately
       setFeedbackLoading(false);
 
-      // Step 2: Get AI response after feedback is ready
-      const aiResponse = await apiService.getAIResponse(activeConversationId);
+      // Step 2: Get AI response after feedback is ready (streaming)
+      // Don't add message until first chunk arrives
+      const streamingMessageId = Date.now();
+      let streamingMessageAdded = false;
 
-      console.log("DEBUG: AI Response:", aiResponse);
+      // Stream AI response
+      let fullResponse = "";
 
-      // Update with the complete message history including AI response
-      setMessages(aiResponse.messages);
+      await apiService.getAIResponse(
+        activeConversationId,
+        // onChunk callback - update state immediately for each chunk
+        (chunk) => {
+          fullResponse += chunk;
 
-      // Update conversations list only when needed (after message is sent)
-      // This updates the conversation title and message count
-      // Only reload if needed to update the conversation metadata
-      if (isAuthenticated) {
-        loadConversations();
-      }
+          // Add the streaming message only when first chunk arrives
+          if (!streamingMessageAdded) {
+            streamingMessageAdded = true;
+            const streamingMessage = {
+              role: "assistant",
+              content: fullResponse,
+              timestamp: new Date().toISOString(),
+              _streaming: true,
+              _id: streamingMessageId,
+            };
+            setMessages((prev) => [...prev, streamingMessage]);
+          } else {
+            // Update state immediately - React 18 will handle batching appropriately
+            setMessages((prev) => {
+              const updated = prev.map((msg) =>
+                msg._id === streamingMessageId
+                  ? { ...msg, content: fullResponse }
+                  : msg
+              );
+              return updated;
+            });
+          }
+        },
+        // onComplete callback
+        (completeResponse) => {
+          // Replace streaming message with final message
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg._id === streamingMessageId
+                ? {
+                    role: "assistant",
+                    content: completeResponse || fullResponse,
+                    timestamp: new Date().toISOString(),
+                  }
+                : msg
+            )
+          );
 
-      // Message sending is complete, allow loadConversation to run again
-      isSendingMessageRef.current = false;
+          // Update conversations list
+          if (isAuthenticated) {
+            loadConversations();
+          }
+
+          // Message sending is complete, allow loadConversation to run again
+          isSendingMessageRef.current = false;
+          setLoading(false);
+        },
+        // onError callback
+        (errorData) => {
+          console.error("Streaming error:", errorData);
+          // Remove streaming message on error
+          setMessages((prev) =>
+            prev.filter((msg) => msg._id !== streamingMessageId)
+          );
+
+          let errorMessage = "Failed to get AI response. ";
+          if (errorData.error) {
+            errorMessage += errorData.error;
+          } else if (errorData.details) {
+            errorMessage += errorData.details;
+          }
+
+          alert(errorMessage);
+          isSendingMessageRef.current = false;
+          setLoading(false);
+        }
+      );
     } catch (error) {
       console.error("Error sending message:", error);
 

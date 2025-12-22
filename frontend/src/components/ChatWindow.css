@@ -312,6 +312,23 @@
   border-bottom-left-radius: 4px;
 }
 
+/* Streaming message fade-in animation - ChatGPT style */
+.message-text.streaming {
+  animation: fadeInSmooth 0.4s ease-out;
+}
+
+/* Smooth fade-in animation for streaming content */
+@keyframes fadeInSmooth {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .message-time {
   font-size: 11px;
   color: #999;

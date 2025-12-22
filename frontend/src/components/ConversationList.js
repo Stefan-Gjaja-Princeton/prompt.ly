@@ -59,7 +59,7 @@ const ConversationList = ({
             >
               <div className="conversation-content">
                 <h3 className="conversation-title">
-                  {conversation.title || "Untitled Conversation"}
+                  {conversation.title || "New Conversation"}
                 </h3>
                 <div className="conversation-meta">
                   <span className="message-count">
