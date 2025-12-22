@@ -65,9 +65,14 @@ export const createApiService = (getAccessTokenSilently) => {
   );
 
   return {
-    // Get all conversations
-    getConversations: async () => {
-      const response = await api.get("/conversations");
+    // Get all conversations (with optional pagination)
+    getConversations: async (limit = null, offset = 0) => {
+      const params = {};
+      if (limit !== null) {
+        params.limit = limit;
+        params.offset = offset;
+      }
+      const response = await api.get("/conversations", { params });
       return response.data;
     },
 

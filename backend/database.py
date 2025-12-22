@@ -43,20 +43,42 @@ class Database:
     def _init_postgres(self):
         """Initialize PostgreSQL connection pool"""
         try:
-            # Parse DATABASE_URL and create connection
-            # Render provides DATABASE_URL like: postgresql://user:pass@host:port/dbname
-            self.conn_pool = None  # We'll use direct connections for simplicity
-            print(f"PostgreSQL database URL configured")
+            import psycopg2
+            from psycopg2 import pool
+            
+            # Create connection pool with reasonable defaults
+            # minconn=2: minimum 2 connections always available
+            # maxconn=10: maximum 10 connections (adjust based on your needs)
+            self.conn_pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=2,
+                maxconn=10,
+                dsn=self.database_url,
+                connect_timeout=10
+            )
+            print(f"PostgreSQL connection pool initialized (2-10 connections)")
         except Exception as e:
-            print(f"Error initializing PostgreSQL: {e}")
-            self.use_postgres = False
+            print(f"Error initializing PostgreSQL connection pool: {e}")
+            print("Falling back to direct connections")
+            self.conn_pool = None
+            # Don't disable PostgreSQL, just use direct connections as fallback
     
     def _get_connection(self):
         """Get database connection (PostgreSQL or SQLite)"""
         if self.use_postgres:
             import psycopg2
             
-            # psycopg2.connect can handle both postgres:// and postgresql:// URLs directly
+            # Use connection pool if available, otherwise fall back to direct connection
+            if self.conn_pool:
+                try:
+                    conn = self.conn_pool.getconn()
+                    if conn:
+                        conn.autocommit = False
+                        return conn
+                except Exception as e:
+                    print(f"Warning: Failed to get connection from pool: {e}")
+                    print("Falling back to direct connection")
+            
+            # Fallback to direct connection if pool is unavailable
             conn = psycopg2.connect(
                 self.database_url,
                 connect_timeout=10
@@ -67,6 +89,29 @@ class Database:
             conn = sqlite3.connect(self.db_path, timeout=30.0)
             conn.execute("PRAGMA journal_mode=WAL")
             return conn
+    
+    def _close_connection(self, conn):
+        """Close or return connection to pool depending on database type"""
+        if not conn:
+            return
+        
+        if self.use_postgres and self.conn_pool:
+            # Return to connection pool
+            try:
+                self.conn_pool.putconn(conn)
+            except Exception as e:
+                print(f"Warning: Failed to return connection to pool: {e}")
+                # If returning fails, close the connection
+                try:
+                    self._close_connection(conn)
+                except:
+                    pass
+        else:
+            # Close connection directly (SQLite or PostgreSQL without pool)
+            try:
+                self._close_connection(conn)
+            except:
+                pass
     
     # deprecate this, not used any more
     def _execute_query(self, query: str, params: tuple = None, fetch_one: bool = False, fetch_all: bool = False):
@@ -107,7 +152,7 @@ class Database:
             raise
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def clear_locks(self):
         """Clear any existing database locks (SQLite only)"""
@@ -226,6 +271,42 @@ class Database:
                 except sqlite3.OperationalError:
                     pass  # Column already exists
             
+            # Add message_count column if it doesn't exist (for performance optimization)
+            if self.use_postgres:
+                cursor.execute('''
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='conversations' AND column_name='message_count'
+                ''')
+                if not cursor.fetchone():
+                    cursor.execute('ALTER TABLE conversations ADD COLUMN message_count INTEGER DEFAULT 0')
+            else:
+                # SQLite: Try to add column (will fail silently if exists)
+                try:
+                    cursor.execute('ALTER TABLE conversations ADD COLUMN message_count INTEGER DEFAULT 0')
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
+            
+            # Add indexes for performance (safe to run multiple times with IF NOT EXISTS)
+            if self.use_postgres:
+                cursor.execute('''
+                    CREATE INDEX IF NOT EXISTS idx_conversations_user_email 
+                    ON conversations(user_email)
+                ''')
+                cursor.execute('''
+                    CREATE INDEX IF NOT EXISTS idx_conversations_updated_at 
+                    ON conversations(updated_at DESC)
+                ''')
+            else:
+                # SQLite: Check if index exists before creating
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_conversations_user_email'")
+                if not cursor.fetchone():
+                    cursor.execute('CREATE INDEX idx_conversations_user_email ON conversations(user_email)')
+                
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_conversations_updated_at'")
+                if not cursor.fetchone():
+                    cursor.execute('CREATE INDEX idx_conversations_updated_at ON conversations(updated_at DESC)')
+            
             conn.commit()
         except Exception as e:
             print(f"Error initializing database: {e}")
@@ -233,7 +314,7 @@ class Database:
                 conn.rollback()
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def create_user(self, email: str, first_name: str = None, last_name: str = None, google_id: str = None, profile_picture_url: str = None) -> bool:
         """Create a new user (doesn't do anything for existing users)"""
@@ -262,7 +343,7 @@ class Database:
             return False
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def get_user_by_email(self, email: str) -> Optional[Dict]:
         """Fetch a user record by email"""
@@ -300,7 +381,7 @@ class Database:
             return None
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def update_user_login(self, email: str) -> None:
         """Update last_login when a user signs in"""
@@ -321,7 +402,7 @@ class Database:
                 conn.rollback()
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def update_user_profile(self, email: str, first_name: str = None, last_name: str = None, google_id: str = None, profile_picture_url: str = None) -> bool:
         """Update user profile information"""
@@ -367,7 +448,7 @@ class Database:
             return False
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def get_user_conversations(self, email: str) -> List[str]:
         """Get all conversation IDs for a user by querying conversations table"""
@@ -395,7 +476,7 @@ class Database:
             return []
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def create_conversation(self, email: str, conversation_id: str) -> bool:
         """Create a new conversation"""
@@ -407,13 +488,13 @@ class Database:
             # Create conversation directly in conversations table
             if self.use_postgres:
                 cursor.execute(
-                    "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (%s, %s, %s)",
-                    (conversation_id, email, json.dumps([]))
+                    "INSERT INTO conversations (conversation_id, user_email, messages, message_count) VALUES (%s, %s, %s, %s)",
+                    (conversation_id, email, json.dumps([]), 0)
                 )
             else:
                 cursor.execute(
-                    "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (?, ?, ?)",
-                    (conversation_id, email, json.dumps([]))
+                    "INSERT INTO conversations (conversation_id, user_email, messages, message_count) VALUES (?, ?, ?, ?)",
+                    (conversation_id, email, json.dumps([]), 0)
                 )
             
             conn.commit()
@@ -425,7 +506,7 @@ class Database:
             return False
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def get_conversation(self, conversation_id: str) -> Optional[Dict]:
         """Get conversation data"""
@@ -479,7 +560,7 @@ class Database:
             return None
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def update_conversation(self, conversation_id: str, messages: List[Dict], quality_score: float, message_scores: List[float] = None, feedback: str = None, title: str = None):
         """Update conversation with new messages, quality score, feedback, and optionally title"""
@@ -490,29 +571,30 @@ class Database:
             
             # Handle message scores
             scores_json = json.dumps(message_scores) if message_scores else None
+            message_count = len(messages) if messages else 0
             
             # Build update query - only update title if provided
             if title is not None:
                 if self.use_postgres:
                     cursor.execute(
-                        "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, title = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
-                        (json.dumps(messages), quality_score, feedback, scores_json, title, conversation_id)
+                        "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, title = %s, message_count = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                        (json.dumps(messages), quality_score, feedback, scores_json, title, message_count, conversation_id)
                     )
                 else:
                     cursor.execute(
-                        "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
-                        (json.dumps(messages), quality_score, feedback, scores_json, title, conversation_id)
+                        "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, title = ?, message_count = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                        (json.dumps(messages), quality_score, feedback, scores_json, title, message_count, conversation_id)
                     )
             else:
                 if self.use_postgres:
                     cursor.execute(
-                        "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
-                        (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
+                        "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, message_count = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                        (json.dumps(messages), quality_score, feedback, scores_json, message_count, conversation_id)
                     )
                 else:
                     cursor.execute(
-                        "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
-                        (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
+                        "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, message_count = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                        (json.dumps(messages), quality_score, feedback, scores_json, message_count, conversation_id)
                     )
             
             conn.commit()
@@ -522,7 +604,7 @@ class Database:
                 conn.rollback()
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
     
     def get_conversation_summary(self, conversation_id: str) -> Optional[Dict]:
         """Get conversation summary for the sidebar"""
@@ -533,29 +615,28 @@ class Database:
             
             if self.use_postgres:
                 cursor.execute(
-                    "SELECT user_email, messages, title, created_at, updated_at FROM conversations WHERE conversation_id = %s",
+                    "SELECT user_email, title, created_at, updated_at, message_count FROM conversations WHERE conversation_id = %s",
                     (conversation_id,)
                 )
             else:
                 cursor.execute(
-                    "SELECT user_email, messages, title, created_at, updated_at FROM conversations WHERE conversation_id = ?",
+                    "SELECT user_email, title, created_at, updated_at, message_count FROM conversations WHERE conversation_id = ?",
                     (conversation_id,)
                 )
             
             result = cursor.fetchone()
             
             if result:
-                messages = json.loads(result[1])
-                # Just return the stored title from database (or None if not set)
-                stored_title = result[2]
+                # Use message_count column if available, otherwise fall back to parsing JSON
+                message_count = result[4] if result[4] is not None else 0
                 
                 return {
                     'conversation_id': conversation_id,
                     'user_email': result[0],
-                    'title': stored_title,  # Return stored title or None
-                    'created_at': str(result[3]) if result[3] else None,
-                    'updated_at': str(result[4]) if result[4] else None,
-                    'message_count': len(messages)
+                    'title': result[1],  # Return stored title or None
+                    'created_at': str(result[2]) if result[2] else None,
+                    'updated_at': str(result[3]) if result[3] else None,
+                    'message_count': message_count
                 }
             return None
         except Exception as e:
@@ -563,4 +644,63 @@ class Database:
             return None
         finally:
             if conn:
-                conn.close()
+                self._close_connection(conn)
+    
+    def get_user_conversation_summaries(self, email: str, limit: int = None, offset: int = 0) -> List[Dict]:
+        """Get all conversation summaries for a user in a single query (fixes N+1 problem)"""
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # Build query with optional pagination (use message_count column instead of parsing JSON)
+            if self.use_postgres:
+                base_query = """
+                    SELECT conversation_id, user_email, title, created_at, updated_at, message_count 
+                    FROM conversations 
+                    WHERE user_email = %s 
+                    ORDER BY updated_at DESC
+                """
+                if limit is not None:
+                    query = base_query + " LIMIT %s OFFSET %s"
+                    cursor.execute(query, (email, limit, offset))
+                else:
+                    cursor.execute(query, (email,))
+            else:
+                base_query = """
+                    SELECT conversation_id, user_email, title, created_at, updated_at, message_count 
+                    FROM conversations 
+                    WHERE user_email = ? 
+                    ORDER BY updated_at DESC
+                """
+                if limit is not None:
+                    query = base_query + " LIMIT ? OFFSET ?"
+                    cursor.execute(query, (email, limit, offset))
+                else:
+                    cursor.execute(query, (email,))
+            
+            results = cursor.fetchall()
+            conversations = []
+            
+            for row in results:
+                try:
+                    conversations.append({
+                        'conversation_id': row[0],
+                        'user_email': row[1],
+                        'title': row[2],  # title
+                        'created_at': str(row[3]) if row[3] else None,
+                        'updated_at': str(row[4]) if row[4] else None,
+                        'message_count': row[5] if row[5] is not None else 0
+                    })
+                except (IndexError, TypeError) as e:
+                    print(f"Error parsing conversation {row[0] if row else 'unknown'}: {e}")
+                    # Skip malformed conversations
+                    continue
+            
+            return conversations
+        except Exception as e:
+            print(f"Error getting user conversation summaries: {e}")
+            return []
+        finally:
+            if conn:
+                self._close_connection(conn)

@@ -173,22 +173,19 @@ def get_user_profile():
 @app.route('/api/conversations', methods=['GET'])
 @require_auth
 def get_conversations():
-    """Get all conversations for the authenticated user"""
+    """Get all conversations for the authenticated user with pagination"""
     try:
         user_email = request.current_user.get('email')
         if not user_email:
             return jsonify({"error": "User email not found"}), 500
         
-        conversation_ids = db.get_user_conversations(user_email)
-        conversations = []
+        # Get pagination parameters (default: limit=50, offset=0)
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', type=int, default=0)
         
-        for conv_id in conversation_ids:
-            summary = db.get_conversation_summary(conv_id)
-            if summary:
-                conversations.append(summary)
+        # Use new method that fetches all summaries in a single query
+        conversations = db.get_user_conversation_summaries(user_email, limit=limit, offset=offset)
         
-        # Sort by updated_at descending so that it's most recently updated
-        conversations.sort(key=lambda x: x['updated_at'], reverse=True)
         return jsonify(conversations)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
