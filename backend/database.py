@@ -569,37 +569,77 @@ class Database:
             conn = self._get_connection()
             cursor = conn.cursor()
             
+            # Check if message_count column exists (for backward compatibility)
+            has_message_count = False
+            if self.use_postgres:
+                cursor.execute('''
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='conversations' AND column_name='message_count'
+                ''')
+                has_message_count = cursor.fetchone() is not None
+            else:
+                cursor.execute("PRAGMA table_info(conversations)")
+                columns = cursor.fetchall()
+                has_message_count = any(col[1] == 'message_count' for col in columns)
+            
             # Handle message scores
             scores_json = json.dumps(message_scores) if message_scores else None
             message_count = len(messages) if messages else 0
             
-            # Build update query - only update title if provided
+            # Build update query - only update title if provided, and message_count if column exists
             if title is not None:
-                if self.use_postgres:
-                    cursor.execute(
-                        "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, title = %s, message_count = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
-                        (json.dumps(messages), quality_score, feedback, scores_json, title, message_count, conversation_id)
-                    )
+                if has_message_count:
+                    if self.use_postgres:
+                        cursor.execute(
+                            "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, title = %s, message_count = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                            (json.dumps(messages), quality_score, feedback, scores_json, title, message_count, conversation_id)
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, title = ?, message_count = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                            (json.dumps(messages), quality_score, feedback, scores_json, title, message_count, conversation_id)
+                        )
                 else:
-                    cursor.execute(
-                        "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, title = ?, message_count = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
-                        (json.dumps(messages), quality_score, feedback, scores_json, title, message_count, conversation_id)
-                    )
+                    if self.use_postgres:
+                        cursor.execute(
+                            "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, title = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                            (json.dumps(messages), quality_score, feedback, scores_json, title, conversation_id)
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                            (json.dumps(messages), quality_score, feedback, scores_json, title, conversation_id)
+                        )
             else:
-                if self.use_postgres:
-                    cursor.execute(
-                        "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, message_count = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
-                        (json.dumps(messages), quality_score, feedback, scores_json, message_count, conversation_id)
-                    )
+                if has_message_count:
+                    if self.use_postgres:
+                        cursor.execute(
+                            "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, message_count = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                            (json.dumps(messages), quality_score, feedback, scores_json, message_count, conversation_id)
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, message_count = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                            (json.dumps(messages), quality_score, feedback, scores_json, message_count, conversation_id)
+                        )
                 else:
-                    cursor.execute(
-                        "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, message_count = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
-                        (json.dumps(messages), quality_score, feedback, scores_json, message_count, conversation_id)
-                    )
+                    if self.use_postgres:
+                        cursor.execute(
+                            "UPDATE conversations SET messages = %s, current_quality_score = %s, current_feedback = %s, message_scores = %s, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = %s",
+                            (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE conversations SET messages = ?, current_quality_score = ?, current_feedback = ?, message_scores = ?, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                            (json.dumps(messages), quality_score, feedback, scores_json, conversation_id)
+                        )
             
             conn.commit()
         except Exception as e:
             print(f"Error updating conversation: {e}")
+            import traceback
+            print(traceback.format_exc())
             if conn:
                 conn.rollback()
         finally:
@@ -613,34 +653,73 @@ class Database:
             conn = self._get_connection()
             cursor = conn.cursor()
             
+            # Check if message_count column exists (for backward compatibility)
+            has_message_count = False
             if self.use_postgres:
-                cursor.execute(
-                    "SELECT user_email, title, created_at, updated_at, message_count FROM conversations WHERE conversation_id = %s",
-                    (conversation_id,)
-                )
+                cursor.execute('''
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='conversations' AND column_name='message_count'
+                ''')
+                has_message_count = cursor.fetchone() is not None
             else:
-                cursor.execute(
-                    "SELECT user_email, title, created_at, updated_at, message_count FROM conversations WHERE conversation_id = ?",
-                    (conversation_id,)
-                )
+                cursor.execute("PRAGMA table_info(conversations)")
+                columns = cursor.fetchall()
+                has_message_count = any(col[1] == 'message_count' for col in columns)
+            
+            if self.use_postgres:
+                if has_message_count:
+                    cursor.execute(
+                        "SELECT user_email, title, created_at, updated_at, message_count FROM conversations WHERE conversation_id = %s",
+                        (conversation_id,)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT user_email, messages, title, created_at, updated_at FROM conversations WHERE conversation_id = %s",
+                        (conversation_id,)
+                    )
+            else:
+                if has_message_count:
+                    cursor.execute(
+                        "SELECT user_email, title, created_at, updated_at, message_count FROM conversations WHERE conversation_id = ?",
+                        (conversation_id,)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT user_email, messages, title, created_at, updated_at FROM conversations WHERE conversation_id = ?",
+                        (conversation_id,)
+                    )
             
             result = cursor.fetchone()
             
             if result:
-                # Use message_count column if available, otherwise fall back to parsing JSON
-                message_count = result[4] if result[4] is not None else 0
-                
-                return {
-                    'conversation_id': conversation_id,
-                    'user_email': result[0],
-                    'title': result[1],  # Return stored title or None
-                    'created_at': str(result[2]) if result[2] else None,
-                    'updated_at': str(result[3]) if result[3] else None,
-                    'message_count': message_count
-                }
+                if has_message_count:
+                    # Use message_count column
+                    message_count = result[4] if result[4] is not None else 0
+                    return {
+                        'conversation_id': conversation_id,
+                        'user_email': result[0],
+                        'title': result[1],
+                        'created_at': str(result[2]) if result[2] else None,
+                        'updated_at': str(result[3]) if result[3] else None,
+                        'message_count': message_count
+                    }
+                else:
+                    # Parse messages JSON to count
+                    messages = json.loads(result[1]) if result[1] else []
+                    return {
+                        'conversation_id': conversation_id,
+                        'user_email': result[0],
+                        'title': result[2],
+                        'created_at': str(result[3]) if result[3] else None,
+                        'updated_at': str(result[4]) if result[4] else None,
+                        'message_count': len(messages)
+                    }
             return None
         except Exception as e:
             print(f"Error getting conversation summary: {e}")
+            import traceback
+            print(traceback.format_exc())
             return None
         finally:
             if conn:
@@ -653,26 +732,58 @@ class Database:
             conn = self._get_connection()
             cursor = conn.cursor()
             
-            # Build query with optional pagination (use message_count column instead of parsing JSON)
+            # Check if message_count column exists (for backward compatibility)
+            has_message_count = False
             if self.use_postgres:
-                base_query = """
-                    SELECT conversation_id, user_email, title, created_at, updated_at, message_count 
-                    FROM conversations 
-                    WHERE user_email = %s 
-                    ORDER BY updated_at DESC
-                """
+                cursor.execute('''
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='conversations' AND column_name='message_count'
+                ''')
+                has_message_count = cursor.fetchone() is not None
+            else:
+                cursor.execute("PRAGMA table_info(conversations)")
+                columns = cursor.fetchall()
+                has_message_count = any(col[1] == 'message_count' for col in columns)
+            
+            # Build query based on whether message_count column exists
+            if self.use_postgres:
+                if has_message_count:
+                    base_query = """
+                        SELECT conversation_id, user_email, title, created_at, updated_at, message_count 
+                        FROM conversations 
+                        WHERE user_email = %s 
+                        ORDER BY updated_at DESC
+                    """
+                else:
+                    # Fallback: parse messages JSON to count
+                    base_query = """
+                        SELECT conversation_id, user_email, messages, title, created_at, updated_at 
+                        FROM conversations 
+                        WHERE user_email = %s 
+                        ORDER BY updated_at DESC
+                    """
                 if limit is not None:
                     query = base_query + " LIMIT %s OFFSET %s"
                     cursor.execute(query, (email, limit, offset))
                 else:
                     cursor.execute(query, (email,))
             else:
-                base_query = """
-                    SELECT conversation_id, user_email, title, created_at, updated_at, message_count 
-                    FROM conversations 
-                    WHERE user_email = ? 
-                    ORDER BY updated_at DESC
-                """
+                if has_message_count:
+                    base_query = """
+                        SELECT conversation_id, user_email, title, created_at, updated_at, message_count 
+                        FROM conversations 
+                        WHERE user_email = ? 
+                        ORDER BY updated_at DESC
+                    """
+                else:
+                    # Fallback: parse messages JSON to count
+                    base_query = """
+                        SELECT conversation_id, user_email, messages, title, created_at, updated_at 
+                        FROM conversations 
+                        WHERE user_email = ? 
+                        ORDER BY updated_at DESC
+                    """
                 if limit is not None:
                     query = base_query + " LIMIT ? OFFSET ?"
                     cursor.execute(query, (email, limit, offset))
@@ -684,15 +795,28 @@ class Database:
             
             for row in results:
                 try:
-                    conversations.append({
-                        'conversation_id': row[0],
-                        'user_email': row[1],
-                        'title': row[2],  # title
-                        'created_at': str(row[3]) if row[3] else None,
-                        'updated_at': str(row[4]) if row[4] else None,
-                        'message_count': row[5] if row[5] is not None else 0
-                    })
-                except (IndexError, TypeError) as e:
+                    if has_message_count:
+                        # Use message_count column
+                        conversations.append({
+                            'conversation_id': row[0],
+                            'user_email': row[1],
+                            'title': row[2],  # title
+                            'created_at': str(row[3]) if row[3] else None,
+                            'updated_at': str(row[4]) if row[4] else None,
+                            'message_count': row[5] if row[5] is not None else 0
+                        })
+                    else:
+                        # Parse messages JSON to count
+                        messages = json.loads(row[2]) if row[2] else []
+                        conversations.append({
+                            'conversation_id': row[0],
+                            'user_email': row[1],
+                            'title': row[3],  # title
+                            'created_at': str(row[4]) if row[4] else None,
+                            'updated_at': str(row[5]) if row[5] else None,
+                            'message_count': len(messages)
+                        })
+                except (IndexError, TypeError, json.JSONDecodeError) as e:
                     print(f"Error parsing conversation {row[0] if row else 'unknown'}: {e}")
                     # Skip malformed conversations
                     continue
@@ -700,6 +824,8 @@ class Database:
             return conversations
         except Exception as e:
             print(f"Error getting user conversation summaries: {e}")
+            import traceback
+            print(traceback.format_exc())
             return []
         finally:
             if conn:
