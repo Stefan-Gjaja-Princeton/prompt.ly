@@ -11,17 +11,22 @@ const ConversationList = ({
   onSelectConversation,
   onCreateNew,
   loading = false,
+  isNewConversation = false,
 }) => {
   const formatDate = (dateString) => {
+    if (!dateString) return "Unknown";
     const date = new Date(dateString);
     const now = new Date();
-    const diffTime = Math.abs(now - date);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Calculate difference in days (not absolute, to handle timezone issues)
+    const diffTime = now - date;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
     // formatting to make the days references look normal
-    if (diffDays === 1) return "Today";
-    if (diffDays === 2) return "Yesterday";
-    if (diffDays <= 7) return `${diffDays - 1} days ago`;
+    if (diffDays < 0) return "Today"; // Handle negative days (timezone issues)
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays <= 7) return `${diffDays} days ago`;
     return date.toLocaleDateString();
   };
 
@@ -29,13 +34,19 @@ const ConversationList = ({
     <div className="conversation-list">
       <div className="conversation-header">
         <h2>Conversations</h2>
-        <button
-          className="new-conversation-btn"
-          onClick={onCreateNew}
-          title="Start new conversation"
-        >
-          <Plus size={20} />
-        </button>
+        <div className="new-conversation-btn-wrapper">
+          <button
+            className={`new-conversation-btn ${isNewConversation ? "disabled" : ""}`}
+            onClick={onCreateNew}
+            title={isNewConversation ? undefined : "Start new conversation"}
+            disabled={isNewConversation}
+          >
+            <Plus size={20} />
+          </button>
+          {isNewConversation && (
+            <div className="tooltip">You have a new conversation open in the main window.</div>
+          )}
+        </div>
       </div>
 
       <div className="conversation-items">

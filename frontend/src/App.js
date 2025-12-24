@@ -68,6 +68,7 @@ function App() {
         setQualityScore(data.quality_score);
         setFeedback(data.feedback || null); // Load feedback from conversation
         setIsTerse(data.quality_score !== null && data.quality_score <= 5.0);
+        // Scroll is handled by useEffect in ChatWindow when messages change
       } catch (error) {
         console.error("Error loading conversation:", error);
       }
@@ -104,16 +105,7 @@ function App() {
   const createNewConversation = async () => {
     try {
       const data = await apiService.createConversation();
-      const newConversation = {
-        conversation_id: data.conversation_id,
-        title: "New Conversation",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        message_count: 0,
-      };
-
-      // Update conversations without triggering a reload
-      setConversations((prev) => [newConversation, ...prev]);
+      // Don't add to conversations list yet - only add when first message is sent
       setCurrentConversationId(data.conversation_id);
       setMessages([]);
       setQualityScore(null);
@@ -147,15 +139,8 @@ function App() {
         // Create conversation but don't clear messages - preserve the user message we just added
         const data = await apiService.createConversation();
         activeConversationId = data.conversation_id;
-        const newConversation = {
-          conversation_id: data.conversation_id,
-          title: "New Conversation",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          message_count: 0,
-        };
-        setConversations((prev) => [newConversation, ...prev]);
         setCurrentConversationId(data.conversation_id);
+        // Don't add to conversations list yet - will be added after first message with title
         // Don't clear messages here - we already added the user message above
       } catch (e) {
         // Better error message extraction
@@ -216,18 +201,25 @@ function App() {
       setFeedback(feedbackResponse.feedback);
       setIsTerse(
         feedbackResponse.quality_score !== null &&
-          feedbackResponse.quality_score <= 5.0
+        feedbackResponse.quality_score <= 5.0
       );
 
-      // Update conversation title in the list if it was generated
-      if (feedbackResponse.title) {
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.conversation_id === activeConversationId
-              ? { ...conv, title: feedbackResponse.title }
-              : conv
-          )
-        );
+      // Store title for later use when updating conversation list
+      const updated_title = feedbackResponse.title;
+      
+      // Update conversation title in the list if it was generated (only if conversation already exists)
+      if (updated_title) {
+        setConversations((prev) => {
+          const exists = prev.some((conv) => conv.conversation_id === activeConversationId);
+          if (exists) {
+            return prev.map((conv) =>
+              conv.conversation_id === activeConversationId
+                ? { ...conv, title: updated_title }
+                : conv
+            );
+          }
+          return prev;
+        });
       }
 
       // Stop feedback loading immediately
@@ -273,8 +265,8 @@ function App() {
         // onComplete callback
         (completeResponse) => {
           // Replace streaming message with final message
-          setMessages((prev) =>
-            prev.map((msg) =>
+          setMessages((prev) => {
+            const updated = prev.map((msg) =>
               msg._id === streamingMessageId
                 ? {
                     role: "assistant",
@@ -282,13 +274,49 @@ function App() {
                     timestamp: new Date().toISOString(),
                   }
                 : msg
-            )
-          );
-
-          // Update conversations list
-          if (isAuthenticated) {
-            loadConversations();
-          }
+            );
+            
+            // Update conversations list - update in place instead of reloading to avoid flickering
+            if (isAuthenticated) {
+              // Get current messages count after update
+              const userMessageCount = updated.filter((m) => m.role === "user").length;
+              
+              // If this is a new conversation (not in list yet), add it
+              setConversations((prevConvs) => {
+                const conversationExists = prevConvs.some(
+                  (conv) => conv.conversation_id === activeConversationId
+                );
+                
+                if (!conversationExists) {
+                  // Add new conversation to the list
+                  // Use current timestamp - will be updated from backend on next load
+                  const now = new Date().toISOString();
+                  const newConversation = {
+                    conversation_id: activeConversationId,
+                    title: updated_title || "New Conversation",
+                    created_at: now,
+                    updated_at: now,
+                    message_count: userMessageCount,
+                  };
+                  return [newConversation, ...prevConvs];
+                } else {
+                  // Update existing conversation in place
+                  return prevConvs.map((conv) =>
+                    conv.conversation_id === activeConversationId
+                      ? {
+                          ...conv,
+                          title: updated_title || conv.title,
+                          updated_at: new Date().toISOString(),
+                          message_count: userMessageCount,
+                        }
+                      : conv
+                  );
+                }
+              });
+            }
+            
+            return updated;
+          });
 
           // Message sending is complete, allow loadConversation to run again
           isSendingMessageRef.current = false;
@@ -392,6 +420,7 @@ function App() {
           onSelectConversation={selectConversation}
           onCreateNew={createNewConversation}
           loading={conversationsLoading}
+          isNewConversation={currentConversationId !== null && messages.length === 0}
         />
 
         <ChatWindow
