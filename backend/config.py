@@ -32,3 +32,8 @@ class Config:
     
     # CORS settings - allow frontend URL in production
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    
+    # Title generation settings
+    # If True: Generate 5-word titles using ChatGPT 4o
+    # If False: Use first message directly (old behavior)
+    USE_AI_TITLE_GENERATION = os.getenv('USE_AI_TITLE_GENERATION', 'true').lower() == 'true'

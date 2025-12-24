@@ -333,29 +333,47 @@ Format your response as JSON:
         except Exception as e:
             return 5.0, f"Error generating feedback: {str(e)}", 5.0
     
-    def get_conversation_title(self, messages: List[Dict]) -> str:
+    def get_conversation_title(self, messages: List[Dict], use_ai_generation: bool = True) -> str:
         """Generate a title for the conversation based on the first message"""
         if not messages:
             return "New Conversation"
         
-        # just prompts the AI tool to generate a title
         first_message = messages[0].get('content', '')
-        if len(first_message) <= 50:
-            return first_message
         
+        # Old behavior: return first message directly if AI generation is disabled
+        if not use_ai_generation:
+            if len(first_message) <= 50:
+                return first_message
+            return first_message[:50] + "..."
+        
+        # New behavior: Generate 5-word title using ChatGPT 4o
         try:
-            # Use feedback model for title generation (gpt-4o supports temperature)
             api_params = {
                 "model": self.feedback_model,
                 "messages": [
-                    {"role": "system", "content": "Create a short, descriptive title (max 50 characters) for this conversation based on the first message."},
+                    {"role": "system", "content": "Create a concise title of EXACTLY 5 words or fewer that describes what the user is requesting. You MUST use 5 words or less. Return only the title with no explanation, no quotes, and no punctuation at the end."},
                     {"role": "user", "content": first_message}
                 ],
-                "max_tokens": 50,
+                "max_tokens": 15,
                 "temperature": 0.3
             }
             
             response = self.client.chat.completions.create(**api_params)
-            return response.choices[0].message.content.strip()
-        except:
+            title = response.choices[0].message.content.strip()
+            # Remove any quotes if the AI added them
+            title = title.strip('"\'')
+            # Remove trailing punctuation
+            title = title.rstrip('.,!?;:')
+            
+            # Enforce 5-word limit by truncating if necessary
+            words = title.split()
+            if len(words) > 5:
+                title = ' '.join(words[:5])
+            
+            return title
+        except Exception as e:
+            print(f"WARNING: Failed to generate AI title: {e}")
+            # Fallback to first message content
+            if len(first_message) <= 50:
+                return first_message
             return first_message[:50] + "..."

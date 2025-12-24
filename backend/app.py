@@ -280,6 +280,7 @@ def send_message(conversation_id):
         quality_score, feedback, current_message_score = ai_service.get_feedback_response(messages, previous_scores)
         
         # Generate title if no title exists yet and we have at least one user message
+        # Title remains fixed once generated (only generate if existing_title is None)
         title = None
         existing_title = conversation.get('title')
         user_messages = [msg for msg in messages if msg.get('role') == 'user']
@@ -287,7 +288,12 @@ def send_message(conversation_id):
         if not existing_title and len(user_messages) > 0:  # No title yet but we have user messages
             try:
                 # Use the first user message to generate the title
-                title = ai_service.get_conversation_title([user_messages[0]])
+                # Pass the config flag to control AI generation vs old behavior
+                from config import Config
+                title = ai_service.get_conversation_title(
+                    [user_messages[0]], 
+                    use_ai_generation=Config.USE_AI_TITLE_GENERATION
+                )
                 print(f"DEBUG: Generated conversation title: {title}")
             except Exception as e:
                 print(f"WARNING: Failed to generate conversation title: {e}")
