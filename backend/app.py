@@ -241,26 +241,46 @@ def get_conversation(conversation_id):
 @app.route('/api/conversations/<conversation_id>/messages', methods=['POST'])
 @require_auth
 def send_message(conversation_id):
-    """Send a message to a conversation"""
+    """Send a message to a conversation. Creates the conversation if it doesn't exist."""
     try:
         data = request.get_json()
-        user_message = data.get('message', '')
+        user_message = data.get('message', '') if data else ''
         
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
         
-        # Get current conversation
+        user_email = request.current_user['email']
+        
+        # Get current conversation, create it if it doesn't exist
         conversation = db.get_conversation(conversation_id)
         if not conversation:
-            return jsonify({"error": "Conversation not found"}), 404
+            # Conversation doesn't exist - create it now (this happens when user clicks plus button but hasn't sent a message yet)
+            # Ensure user exists in DB
+            db.create_user(user_email)
+            # Create conversation with the provided conversation_id
+            success = db.create_conversation(user_email, conversation_id)
+            if not success:
+                return jsonify({"error": "Failed to create conversation"}), 500
+            # Get the newly created conversation
+            conversation = db.get_conversation(conversation_id)
+            if not conversation:
+                return jsonify({"error": "Failed to retrieve created conversation"}), 500
+        else:
+            # Validate that existing conversation belongs to the authenticated user
+            conv_user_email = conversation.get('user_email')
+            if conv_user_email != user_email:
+                return jsonify({"error": "Conversation not found"}), 404
         
-        messages = conversation['messages']
+        messages = conversation.get('messages', [])
+        if not isinstance(messages, list):
+            messages = []
         
         # Count existing user messages (not including AI responses)
         user_message_count = sum(1 for msg in messages if msg.get('role') == 'user')
         
         # Check if conversation has reached the 20 user message limit
         if user_message_count >= 20:
+            print(f"ERROR: Conversation {conversation_id} has reached limit with {user_message_count} messages")
             return jsonify({
                 "error": "Conversation limit reached",
                 "message": "This conversation has reached the maximum of 20 user messages. Please start a new conversation to continue."
@@ -321,6 +341,9 @@ def send_message(conversation_id):
         })
         
     except Exception as e:
+        print(f"ERROR in send_message endpoint: {e}")
+        import traceback
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 # endpoint to get ai response after the feedback is given (streaming)

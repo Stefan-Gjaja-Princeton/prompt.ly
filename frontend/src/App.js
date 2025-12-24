@@ -70,7 +70,17 @@ function App() {
         setIsTerse(data.quality_score !== null && data.quality_score <= 5.0);
         // Scroll is handled by useEffect in ChatWindow when messages change
       } catch (error) {
-        console.error("Error loading conversation:", error);
+        // If conversation doesn't exist (404), it's expected for new conversations that haven't sent a message yet
+        // Silently ignore this error - the conversation will be created when the first message is sent
+        if (error.response?.status === 404) {
+          // Clear messages for new conversations - this is expected behavior
+          setMessages([]);
+          setQualityScore(null);
+          setFeedback(null);
+          setIsTerse(false);
+        } else {
+          console.error("Error loading conversation:", error);
+        }
       }
     },
     [apiService]
@@ -91,32 +101,35 @@ function App() {
 
   // Load conversation when currentConversationId changes
   // But don't load if we're currently sending a message (to preserve user message) - in response to user feedback
+  // Also don't load if it's a new conversation that doesn't exist in the conversations list yet
   useEffect(() => {
     if (
       currentConversationId &&
       loadConversationRef.current &&
       !isSendingMessageRef.current
     ) {
-      loadConversationRef.current(currentConversationId);
+      // Only load if the conversation exists in the conversations list (it's been saved to database)
+      // New conversations created locally won't be in the list until the first message is sent
+      const conversationExists = conversations.some(
+        (conv) => conv.conversation_id === currentConversationId
+      );
+      if (conversationExists) {
+        loadConversationRef.current(currentConversationId);
+      }
     }
-  }, [currentConversationId]);
+  }, [currentConversationId, conversations]);
 
-  // uses the apiService to make a conversation
+  // Generate a temporary conversation ID locally (not stored in database until first message is sent)
   const createNewConversation = async () => {
-    try {
-      const data = await apiService.createConversation();
-      // Don't add to conversations list yet - only add when first message is sent
-      setCurrentConversationId(data.conversation_id);
-      setMessages([]);
-      setQualityScore(null);
-      setFeedback(null);
-      setIsTerse(false);
+    // Generate UUID locally - conversation will be created in database when first message is sent
+    const conversationId = crypto.randomUUID();
+    setCurrentConversationId(conversationId);
+    setMessages([]);
+    setQualityScore(null);
+    setFeedback(null);
+    setIsTerse(false);
 
-      return data.conversation_id;
-    } catch (error) {
-      console.error("Error creating conversation:", error);
-      throw error;
-    }
+    return conversationId;
   };
 
   const sendMessage = async (message) => {
@@ -131,64 +144,19 @@ function App() {
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    // Ensure we have a conversation to send into; create one if needed
+    // Ensure we have a conversation ID
     let activeConversationId = currentConversationId;
-    // this is all if we gotta make a new convo
     if (!activeConversationId) {
-      try {
-        // Create conversation but don't clear messages - preserve the user message we just added
-        const data = await apiService.createConversation();
-        activeConversationId = data.conversation_id;
-        setCurrentConversationId(data.conversation_id);
-        // Don't add to conversations list yet - will be added after first message with title
-        // Don't clear messages here - we already added the user message above
-      } catch (e) {
-        // Better error message extraction
-        let errorMessage = "Failed to create conversation. ";
-
-        if (e.response) {
-          // Server responded with error
-          const status = e.response.status;
-          const data = e.response.data;
-
-          if (status === 401) {
-            errorMessage +=
-              "Authentication failed. Please try logging out and back in.";
-          } else if (status === 500) {
-            errorMessage +=
-              "Server error occurred. Please check if the backend is running.";
-          } else if (data?.error) {
-            errorMessage += data.error;
-          } else {
-            errorMessage += `Server returned error ${status}`;
-          }
-        } else if (e.request) {
-          // Request made but no response - network error
-          errorMessage += "Network error - unable to reach the server. ";
-          errorMessage += "Please check:\n";
-          errorMessage += "1. Is the backend service running?\n";
-          errorMessage +=
-            "2. Check the browser console (F12) for more details.\n";
-          errorMessage += `3. Verify REACT_APP_API_URL is set correctly.`;
-        } else {
-          // Other error
-          errorMessage += e.message || String(e);
-        }
-
-        console.error("Error creating conversation:", e);
-        alert(errorMessage);
-
-        // Remove the user message if conversation creation failed
-        setMessages((prev) => prev.filter((msg) => msg !== userMessage));
-        isSendingMessageRef.current = false;
-        return;
-      }
+      // Generate a new conversation ID if we somehow don't have one
+      activeConversationId = crypto.randomUUID();
+      setCurrentConversationId(activeConversationId);
     }
 
     setLoading(true);
     setFeedbackLoading(true);
     try {
       // Step 1: Get feedback and score immediately
+      // Backend will create the conversation if it doesn't exist
       const feedbackResponse = await apiService.sendMessage(
         activeConversationId,
         message
@@ -207,16 +175,16 @@ function App() {
       // Store title for later use when updating conversation list
       const updated_title = feedbackResponse.title;
       
-      // Update conversation title in the list if it was generated (only if conversation already exists)
+      // Update conversation title in the list if it was generated and move to top
       if (updated_title) {
         setConversations((prev) => {
           const exists = prev.some((conv) => conv.conversation_id === activeConversationId);
           if (exists) {
-            return prev.map((conv) =>
-              conv.conversation_id === activeConversationId
-                ? { ...conv, title: updated_title }
-                : conv
-            );
+            // Find and update the conversation, then move it to the top
+            const conv = prev.find((c) => c.conversation_id === activeConversationId);
+            const updatedConv = { ...conv, title: updated_title, updated_at: new Date().toISOString() };
+            const otherConvs = prev.filter((c) => c.conversation_id !== activeConversationId);
+            return [updatedConv, ...otherConvs];
           }
           return prev;
         });
@@ -276,7 +244,7 @@ function App() {
                 : msg
             );
             
-            // Update conversations list - update in place instead of reloading to avoid flickering
+            // Update conversations list - update in place and move to top to avoid flickering
             if (isAuthenticated) {
               // Get current messages count after update - count ALL messages (user + assistant)
               const totalMessageCount = updated.length;
@@ -300,17 +268,19 @@ function App() {
                   };
                   return [newConversation, ...prevConvs];
                 } else {
-                  // Update existing conversation in place
-                  return prevConvs.map((conv) =>
-                    conv.conversation_id === activeConversationId
-                      ? {
-                          ...conv,
-                          title: updated_title || conv.title,
-                          updated_at: new Date().toISOString(),
-                          message_count: totalMessageCount,
-                        }
-                      : conv
+                  // Update existing conversation and move it to the top
+                  const updatedConversation = {
+                    conversation_id: activeConversationId,
+                    title: updated_title || prevConvs.find(c => c.conversation_id === activeConversationId)?.title,
+                    created_at: prevConvs.find(c => c.conversation_id === activeConversationId)?.created_at,
+                    updated_at: new Date().toISOString(),
+                    message_count: totalMessageCount,
+                  };
+                  // Remove the conversation from its current position and add it to the top
+                  const otherConvs = prevConvs.filter(
+                    (conv) => conv.conversation_id !== activeConversationId
                   );
+                  return [updatedConversation, ...otherConvs];
                 }
               });
             }
@@ -420,7 +390,7 @@ function App() {
           onSelectConversation={selectConversation}
           onCreateNew={createNewConversation}
           loading={conversationsLoading}
-          isNewConversation={currentConversationId !== null && messages.length === 0}
+          isNewConversation={messages.length === 0}
         />
 
         <ChatWindow
