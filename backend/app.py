@@ -188,6 +188,9 @@ def get_conversations():
         
         return jsonify(conversations)
     except Exception as e:
+        print(f"ERROR in get_conversations endpoint: {e}")
+        import traceback
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 # endpoint to make a new convo
@@ -221,9 +224,12 @@ def create_conversation():
 @app.route('/api/conversations/<conversation_id>', methods=['GET'])
 @require_auth
 def get_conversation(conversation_id):
-    """Get a specific conversation"""
+    """Get a specific conversation, optionally limiting to last N messages"""
     try:
-        conversation = db.get_conversation(conversation_id)
+        # Get limit parameter (default: None = load all messages, since conversations are capped at 20 user messages)
+        # For very long conversations, you can pass limit_messages to load only recent ones
+        limit_messages = request.args.get('limit_messages', type=int)
+        conversation = db.get_conversation(conversation_id, limit_messages=limit_messages)
         if conversation:
             return jsonify(conversation)
         else:

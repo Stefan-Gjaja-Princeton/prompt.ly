@@ -99,9 +99,14 @@ export const createApiService = (getAccessTokenSilently) => {
       }
     },
 
-    // Get a specific conversation
-    getConversation: async (conversationId) => {
-      const response = await api.get(`/conversations/${conversationId}`);
+    // Get a specific conversation (with optional message limit for faster loading)
+    // By default, loads all messages since conversations are capped at 20 user messages
+    getConversation: async (conversationId, limitMessages = null) => {
+      const params = {};
+      if (limitMessages !== null) {
+        params.limit_messages = limitMessages;
+      }
+      const response = await api.get(`/conversations/${conversationId}`, { params });
       return response.data;
     },
 

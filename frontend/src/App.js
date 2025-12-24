@@ -26,6 +26,7 @@ function App() {
 
   // state management
   const [conversations, setConversations] = useState([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [qualityScore, setQualityScore] = useState(null);
@@ -42,11 +43,16 @@ function App() {
   // gets all the convos
   const loadConversations = useCallback(async () => {
     if (!isAuthenticated) return;
+    setConversationsLoading(true);
     try {
       const data = await apiService.getConversations();
-      setConversations(data);
+      setConversations(data || []); // Ensure we always have an array
     } catch (error) {
       console.error("Error loading conversations:", error);
+      // Don't clear conversations on error - keep existing ones
+      // setConversations([]); // Removed - don't clear on error
+    } finally {
+      setConversationsLoading(false);
     }
   }, [isAuthenticated, apiService]);
 
@@ -385,6 +391,7 @@ function App() {
           currentConversationId={currentConversationId}
           onSelectConversation={selectConversation}
           onCreateNew={createNewConversation}
+          loading={conversationsLoading}
         />
 
         <ChatWindow

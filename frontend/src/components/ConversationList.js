@@ -10,6 +10,7 @@ const ConversationList = ({
   currentConversationId,
   onSelectConversation,
   onCreateNew,
+  loading = false,
 }) => {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -38,7 +39,12 @@ const ConversationList = ({
       </div>
 
       <div className="conversation-items">
-        {conversations.length === 0 ? (
+        {loading ? (
+          <div className="empty-state">
+            <MessageSquare size={48} className="empty-icon" />
+            <p>Loading conversations...</p>
+          </div>
+        ) : conversations.length === 0 ? (
           <div className="empty-state">
             <MessageSquare size={48} className="empty-icon" />
             <p>No conversations yet</p>

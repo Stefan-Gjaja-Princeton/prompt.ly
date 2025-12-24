@@ -486,16 +486,45 @@ class Database:
             cursor = conn.cursor()
             
             # Create conversation directly in conversations table
+            # Check if message_count column exists first
+            has_message_count = False
             if self.use_postgres:
-                cursor.execute(
-                    "INSERT INTO conversations (conversation_id, user_email, messages, message_count) VALUES (%s, %s, %s, %s)",
-                    (conversation_id, email, json.dumps([]), 0)
-                )
+                try:
+                    cursor.execute('''
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE LOWER(table_name)=LOWER('conversations') AND column_name='message_count'
+                    ''')
+                    has_message_count = cursor.fetchone() is not None
+                except:
+                    has_message_count = False
             else:
-                cursor.execute(
-                    "INSERT INTO conversations (conversation_id, user_email, messages, message_count) VALUES (?, ?, ?, ?)",
-                    (conversation_id, email, json.dumps([]), 0)
-                )
+                cursor.execute("PRAGMA table_info(conversations)")
+                columns = cursor.fetchall()
+                has_message_count = any(col[1] == 'message_count' for col in columns)
+            
+            if has_message_count:
+                if self.use_postgres:
+                    cursor.execute(
+                        "INSERT INTO conversations (conversation_id, user_email, messages, message_count) VALUES (%s, %s, %s, %s)",
+                        (conversation_id, email, json.dumps([]), 0)
+                    )
+                else:
+                    cursor.execute(
+                        "INSERT INTO conversations (conversation_id, user_email, messages, message_count) VALUES (?, ?, ?, ?)",
+                        (conversation_id, email, json.dumps([]), 0)
+                    )
+            else:
+                if self.use_postgres:
+                    cursor.execute(
+                        "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (%s, %s, %s)",
+                        (conversation_id, email, json.dumps([]))
+                    )
+                else:
+                    cursor.execute(
+                        "INSERT INTO conversations (conversation_id, user_email, messages) VALUES (?, ?, ?)",
+                        (conversation_id, email, json.dumps([]))
+                    )
             
             conn.commit()
             return True
@@ -508,8 +537,8 @@ class Database:
             if conn:
                 self._close_connection(conn)
     
-    def get_conversation(self, conversation_id: str) -> Optional[Dict]:
-        """Get conversation data"""
+    def get_conversation(self, conversation_id: str, limit_messages: int = None) -> Optional[Dict]:
+        """Get conversation data, optionally limiting to last N messages"""
         conn = None
         try:
             conn = self._get_connection()
@@ -545,18 +574,31 @@ class Database:
                         # If it's not JSON, treat it as a plain string (backward compatibility)
                         feedback = result[3]
                 
+                # Parse messages
+                all_messages = json.loads(result[1])
+                
+                # If limit_messages is specified, return only the last N messages
+                if limit_messages is not None and limit_messages > 0 and len(all_messages) > limit_messages:
+                    messages = all_messages[-limit_messages:]
+                else:
+                    messages = all_messages
+                
                 return {
                     'conversation_id': conversation_id,
                     'user_email': result[0],
-                    'messages': json.loads(result[1]),
+                    'messages': messages,
                     'quality_score': result[2] if result[2] is not None else None,
                     'feedback': feedback,
                     'message_scores': message_scores,
-                    'title': result[5] if len(result) > 5 else None
+                    'title': result[5] if len(result) > 5 else None,
+                    'total_message_count': len(all_messages),
+                    'has_more_messages': limit_messages is not None and len(all_messages) > limit_messages
                 }
             return None
         except Exception as e:
             print(f"Error getting conversation: {e}")
+            import traceback
+            print(traceback.format_exc())
             return None
         finally:
             if conn:
@@ -572,12 +614,16 @@ class Database:
             # Check if message_count column exists (for backward compatibility)
             has_message_count = False
             if self.use_postgres:
-                cursor.execute('''
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name='conversations' AND column_name='message_count'
-                ''')
-                has_message_count = cursor.fetchone() is not None
+                try:
+                    cursor.execute('''
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE LOWER(table_name)=LOWER('conversations') AND column_name='message_count'
+                    ''')
+                    has_message_count = cursor.fetchone() is not None
+                except Exception as e:
+                    print(f"Warning: Could not check for message_count column: {e}")
+                    has_message_count = False
             else:
                 cursor.execute("PRAGMA table_info(conversations)")
                 columns = cursor.fetchall()
@@ -656,12 +702,16 @@ class Database:
             # Check if message_count column exists (for backward compatibility)
             has_message_count = False
             if self.use_postgres:
-                cursor.execute('''
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name='conversations' AND column_name='message_count'
-                ''')
-                has_message_count = cursor.fetchone() is not None
+                try:
+                    cursor.execute('''
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE LOWER(table_name)=LOWER('conversations') AND column_name='message_count'
+                    ''')
+                    has_message_count = cursor.fetchone() is not None
+                except Exception as e:
+                    print(f"Warning: Could not check for message_count column: {e}")
+                    has_message_count = False
             else:
                 cursor.execute("PRAGMA table_info(conversations)")
                 columns = cursor.fetchall()
@@ -735,12 +785,16 @@ class Database:
             # Check if message_count column exists (for backward compatibility)
             has_message_count = False
             if self.use_postgres:
-                cursor.execute('''
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name='conversations' AND column_name='message_count'
-                ''')
-                has_message_count = cursor.fetchone() is not None
+                try:
+                    cursor.execute('''
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE LOWER(table_name)=LOWER('conversations') AND column_name='message_count'
+                    ''')
+                    has_message_count = cursor.fetchone() is not None
+                except Exception as e:
+                    print(f"Warning: Could not check for message_count column: {e}")
+                    has_message_count = False
             else:
                 cursor.execute("PRAGMA table_info(conversations)")
                 columns = cursor.fetchall()
@@ -767,7 +821,7 @@ class Database:
                     query = base_query + " LIMIT %s OFFSET %s"
                     cursor.execute(query, (email, limit, offset))
                 else:
-                    cursor.execute(query, (email,))
+                    cursor.execute(base_query, (email,))
             else:
                 if has_message_count:
                     base_query = """
@@ -788,7 +842,7 @@ class Database:
                     query = base_query + " LIMIT ? OFFSET ?"
                     cursor.execute(query, (email, limit, offset))
                 else:
-                    cursor.execute(query, (email,))
+                    cursor.execute(base_query, (email,))
             
             results = cursor.fetchall()
             conversations = []
