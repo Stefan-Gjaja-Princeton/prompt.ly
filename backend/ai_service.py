@@ -7,7 +7,7 @@ import json
 class AIService:
     def __init__(self, api_key: str):
         self.client = openai.OpenAI(api_key=api_key)
-        self.response_model = "gpt-4o" # Model for chat responses (reasoning model)
+        self.response_model = "gpt-5" # Model for chat responses (reasoning model)
         self.feedback_model = "gpt-4o" # Model for feedback generation
     
     def _is_reasoning_model(self, model: str) -> bool:
