@@ -80,7 +80,7 @@ const ConversationList = ({
                 </h3>
                 <div className="conversation-meta">
                   <span className="message-count">
-                    {conversation.message_count || 0} messages
+                    {conversation.message_count || 0} {conversation.message_count === 1 ? 'message' : 'messages'}
                   </span>
                   <span className="conversation-date">
                     <Clock size={12} />

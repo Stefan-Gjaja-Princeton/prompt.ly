@@ -278,8 +278,8 @@ function App() {
             
             // Update conversations list - update in place instead of reloading to avoid flickering
             if (isAuthenticated) {
-              // Get current messages count after update
-              const userMessageCount = updated.filter((m) => m.role === "user").length;
+              // Get current messages count after update - count ALL messages (user + assistant)
+              const totalMessageCount = updated.length;
               
               // If this is a new conversation (not in list yet), add it
               setConversations((prevConvs) => {
@@ -296,7 +296,7 @@ function App() {
                     title: updated_title || "New Conversation",
                     created_at: now,
                     updated_at: now,
-                    message_count: userMessageCount,
+                    message_count: totalMessageCount,
                   };
                   return [newConversation, ...prevConvs];
                 } else {
@@ -307,7 +307,7 @@ function App() {
                           ...conv,
                           title: updated_title || conv.title,
                           updated_at: new Date().toISOString(),
-                          message_count: userMessageCount,
+                          message_count: totalMessageCount,
                         }
                       : conv
                   );
