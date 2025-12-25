@@ -2,6 +2,7 @@
 //experience with frontend development, especially using React, so it could help me implement
 //things that I was more familiar with in this language.
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useAuth0 } from "@auth0/auth0-react";
 import { Send, User, AlertTriangle, Paperclip, X } from "lucide-react";
 import "./ChatWindow.css";
@@ -21,10 +22,13 @@ const ChatWindow = ({
   const [inputMessage, setInputMessage] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]); // Array of files with previews
   const [isDragging, setIsDragging] = useState(false);
+  const [notification, setNotification] = useState(null); // For popup notifications
+  const [notificationPosition, setNotificationPosition] = useState(null); // Position calculated once and frozen
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const fileInputWrapperRef = useRef(null);
   const previousMessageCountRef = useRef(0);
 
   // Handle copy button clicks for code blocks
@@ -178,8 +182,28 @@ const ChatWindow = ({
     }
   };
 
+  // Show notification popup
+  const showNotification = (message) => {
+    // Calculate position synchronously ONCE and freeze it
+    let position = { top: 0, left: 0 };
+    if (fileInputWrapperRef.current) {
+      const rect = fileInputWrapperRef.current.getBoundingClientRect();
+      position = {
+        top: rect.top, // Viewport-relative position
+        left: rect.left + rect.width / 2, // Center horizontally
+      };
+    }
+    // Set position first, then notification (React batches these but position is frozen)
+    setNotificationPosition(position);
+    setNotification(message);
+    setTimeout(() => {
+      setNotification(null);
+      setNotificationPosition(null);
+    }, 3000); // Hide after 3 seconds
+  };
+
   // Helper function to validate and process a file
-  const processFile = (file) => {
+  const processFile = (file, showErrorNotification = true) => {
     console.log("DEBUG: Processing file:", {
       name: file.name,
       type: file.type,
@@ -198,7 +222,9 @@ const ChatWindow = ({
 
     if (!isValidType) {
       console.error("DEBUG: Invalid file type:", file.type);
-      alert("Please select an image file (PNG, JPG) or PDF");
+      if (showErrorNotification) {
+        showNotification("Filetypes supported: PDF, PNG, JPG");
+      }
       return null;
     }
 
@@ -206,7 +232,9 @@ const ChatWindow = ({
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
       console.error("DEBUG: File too large:", file.size, "bytes");
-      alert("File size must be less than 10MB");
+      if (showErrorNotification) {
+        showNotification("File size must be less than 10MB");
+      }
       return null;
     }
 
@@ -259,12 +287,22 @@ const ChatWindow = ({
 
     // Check if we already have 3 files
     if (selectedFiles.length >= 3) {
-      alert("You can only attach up to 3 files at a time");
+      showNotification("Only 3 files are allowed");
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
       return;
     }
 
     const validFile = processFile(file);
-    if (!validFile) return;
+    if (!validFile) {
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
 
     createFilePreview(validFile, (filePreviewObj) => {
       if (filePreviewObj) {
@@ -312,13 +350,12 @@ const ChatWindow = ({
 
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      // Process up to 3 files or until we reach the limit
-      const filesToAdd = Array.from(files).slice(0, 3 - selectedFiles.length);
+      // Check if adding files would exceed the limit
+      const currentCount = selectedFiles.length;
+      const filesToAdd = Array.from(files).slice(0, 3 - currentCount);
 
       if (files.length > filesToAdd.length) {
-        alert(
-          `You can only attach up to 3 files. Adding the first ${filesToAdd.length} file(s).`
-        );
+        showNotification("Only 3 files are allowed");
       }
 
       filesToAdd.forEach((file) => {
@@ -492,29 +529,35 @@ const ChatWindow = ({
             </div>
           )}
           <div className="input-container" onClick={handleContainerClick}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.pdf,image/png,image/jpeg,application/pdf"
-              onChange={handleFileSelect}
-              className="file-input-hidden"
-              id="file-input"
-              disabled={loading || selectedFiles.length >= 3}
-            />
-            <label
-              htmlFor="file-input"
-              className="file-input-label"
-              title={
-                selectedFiles.length >= 3
-                  ? "Maximum 3 files allowed"
-                  : "Attach file (PDF, PNG, JPG)"
-              }
-            >
-              <Paperclip size={18} />
-              {selectedFiles.length > 0 && (
-                <span className="file-count-badge">{selectedFiles.length}</span>
-              )}
-            </label>
+            <div className="file-input-wrapper" ref={fileInputWrapperRef}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf,image/png,image/jpeg,application/pdf"
+                onChange={handleFileSelect}
+                className="file-input-hidden"
+                id="file-input"
+                disabled={loading || selectedFiles.length >= 3}
+              />
+              <label
+                htmlFor="file-input"
+                className={`file-input-label ${
+                  selectedFiles.length >= 3 ? "disabled" : ""
+                }`}
+                title={
+                  selectedFiles.length >= 3
+                    ? "Maximum 3 files allowed"
+                    : "Attach file (PDF, PNG, JPG)"
+                }
+              >
+                <Paperclip size={18} />
+                {selectedFiles.length > 0 && (
+                  <span className="file-count-badge">
+                    {selectedFiles.length}
+                  </span>
+                )}
+              </label>
+            </div>
             <textarea
               ref={inputRef}
               value={inputMessage}
@@ -536,8 +579,25 @@ const ChatWindow = ({
               <Send size={18} />
             </button>
           </div>
+          <div className="input-disclaimer">
+            prompt.ly can make mistakes. Check important info.
+          </div>
         </form>
       )}
+      {notification &&
+        notificationPosition &&
+        createPortal(
+          <div
+            className="file-notification-popup"
+            style={{
+              top: `${notificationPosition.top}px`,
+              left: `${notificationPosition.left}px`,
+            }}
+          >
+            {notification}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

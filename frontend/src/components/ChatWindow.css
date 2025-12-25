@@ -435,12 +435,22 @@
 }
 
 .input-form {
-  padding: 20px;
+  padding: 16px 20px 12px 20px;
   border-top: 1px solid #e0e0e0;
   background-color: #fafafa;
   flex-shrink: 0;
   min-height: 80px;
   max-height: 200px;
+  position: relative;
+  overflow: visible;
+}
+
+.input-disclaimer {
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+  margin-top: 8px;
+  padding: 0 4px;
 }
 
 .input-container {
@@ -453,8 +463,9 @@
   padding: 8px 12px;
   transition: border-color 0.2s;
   max-height: 140px;
-  overflow: hidden;
+  overflow: visible;
   cursor: text;
+  position: relative;
 }
 
 .input-container:focus-within {
@@ -513,6 +524,14 @@
   display: none;
 }
 
+.file-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
 .file-input-label {
   display: flex;
   align-items: center;
@@ -521,18 +540,58 @@
   color: #666;
   padding: 6px;
   border-radius: 50%;
-  transition: background-color 0.2s, color 0.2s;
+  transition: background-color 0.2s, color 0.2s, opacity 0.2s;
   flex-shrink: 0;
   position: relative;
 }
 
-.file-input-label:hover {
+.file-input-label.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.file-input-label:hover:not(.disabled) {
   background-color: #f0f0f0;
   color: #e36e28;
 }
 
-.file-input-label:active {
+.file-input-label:active:not(.disabled) {
   background-color: #e0e0e0;
+}
+
+.file-notification-popup {
+  position: fixed;
+  background-color: #333;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 10000;
+  animation: popupFadeIn 0.2s ease-out;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+.file-notification-popup::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #333;
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .file-preview-container {
