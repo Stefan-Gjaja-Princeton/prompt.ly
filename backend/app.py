@@ -245,9 +245,24 @@ def send_message(conversation_id):
     try:
         data = request.get_json()
         user_message = data.get('message', '') if data else ''
+        file_attachment = data.get('file_attachment', None) if data else None
         
-        if not user_message:
-            return jsonify({"error": "Message is required"}), 400
+        # Allow message to be empty if file is attached
+        if not user_message and not file_attachment:
+            return jsonify({"error": "Message or file attachment is required"}), 400
+        
+        # Validate file type if attachment is provided
+        if file_attachment:
+            file_type = file_attachment.get("file_type", "")
+            filename = file_attachment.get("filename", "")
+            # Check if it's a valid type (image or PDF)
+            is_image = file_type.startswith("image/") or any(
+                filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg']
+            )
+            is_pdf = file_type == "application/pdf" or filename.lower().endswith('.pdf')
+            
+            if not (is_image or is_pdf):
+                return jsonify({"error": "Only image files (PNG, JPG) and PDFs are supported"}), 400
         
         user_email = request.current_user['email']
         
@@ -289,14 +304,26 @@ def send_message(conversation_id):
         current_quality_score = conversation['quality_score'] or 5.0  # Default to 5.0 for AI response if no score yet
         previous_scores = conversation.get('message_scores', [])
         
-        # Add user message
-        messages.append({
+        # Add user message with optional file attachment
+        user_msg = {
             "role": "user",
-            "content": user_message,
+            "content": user_message or "",
             "timestamp": datetime.now().isoformat()
-        })
+        }
+        
+        # Add file attachment metadata if provided
+        if file_attachment:
+            user_msg["attachments"] = [{
+                "filename": file_attachment.get("filename", "image"),
+                "file_type": file_attachment.get("file_type", "image/jpeg"),
+                # Store base64 data temporarily for AI processing
+                "data": file_attachment.get("data")
+            }]
+        
+        messages.append(user_msg)
         
         # Get feedback and score FIRST (before AI response) just so its not all coming at once
+        # Pass messages with attachments - the feedback model will extract PDF text and note images
         quality_score, feedback, current_message_score = ai_service.get_feedback_response(messages, previous_scores)
         
         # Generate title if no title exists yet and we have at least one user message
@@ -321,22 +348,66 @@ def send_message(conversation_id):
                 first_user_msg = user_messages[0].get('content', '')
                 title = first_user_msg[:50] + "..." if len(first_user_msg) > 50 else first_user_msg
         
+        # Prepare messages for storage (remove base64 data, keep only metadata)
+        messages_for_storage = []
+        for msg in messages:
+            msg_copy = msg.copy()
+            if 'attachments' in msg_copy:
+                # Keep only metadata, remove base64 data
+                msg_copy['attachments'] = [
+                    {
+                        'filename': att.get('filename'),
+                        'file_type': att.get('file_type')
+                    }
+                    for att in msg_copy['attachments']
+                ]
+            messages_for_storage.append(msg_copy)
+        
+        # Store messages with base64 temporarily in a session/cache for AI response
+        # We'll store it in the conversation temporarily by keeping it in messages_for_ai
+        # Actually, we need to pass messages with base64 to get_ai_response
+        # For now, let's store messages with base64 in a temporary way
+        # We'll modify get_ai_response to accept messages directly or reconstruct from request
+        
         # Update conversation with new messages, quality score, and feedback FIRST
         # Serialize feedback dict to JSON string for storage
         new_message_scores = previous_scores + [current_message_score]
         feedback_json = json.dumps(feedback) if isinstance(feedback, dict) else feedback
-        db.update_conversation(conversation_id, messages, quality_score, new_message_scores, feedback_json, title=title)
+        db.update_conversation(conversation_id, messages_for_storage, quality_score, new_message_scores, feedback_json, title=title)
+        
+        # Store messages with base64 in a temporary location for AI response
+        # We'll use a simple in-memory cache keyed by conversation_id
+        # In production, you might want to use Redis or similar
+        # Cache expires after 5 minutes (300 seconds) to prevent memory leaks
+        if not hasattr(app, '_message_cache'):
+            app._message_cache = {}
+            app._message_cache_timestamps = {}
+        
+        import time
+        app._message_cache[conversation_id] = messages  # Keep messages with base64 for AI processing
+        app._message_cache_timestamps[conversation_id] = time.time()
+        
+        # Clean up old cache entries (older than 5 minutes)
+        current_time = time.time()
+        expired_keys = [
+            key for key, timestamp in app._message_cache_timestamps.items()
+            if current_time - timestamp > 300
+        ]
+        for key in expired_keys:
+            app._message_cache.pop(key, None)
+            app._message_cache_timestamps.pop(key, None)
         
         # Get updated conversation to retrieve the title (which may have been generated)
         updated_conversation = db.get_conversation(conversation_id)
         updated_title = updated_conversation.get('title') if updated_conversation else None
         
         # Return feedback immediately (before AI response)
+        # Return messages with metadata only (no base64 data)
         return jsonify({
             "feedback_ready": True,
             "quality_score": quality_score,
             "feedback": feedback,
-            "messages": messages,
+            "messages": messages_for_storage,
             "title": updated_title  # Include the title if it was generated
         })
         
@@ -358,7 +429,23 @@ def get_ai_response(conversation_id):
             print(f"ERROR: Conversation {conversation_id} not found")
             return jsonify({"error": "Conversation not found"}), 404
         
-        messages = conversation.get('messages', [])
+        # Try to get messages with base64 from cache (for AI processing)
+        # If not in cache, use messages from database (which only have metadata)
+        messages = None
+        if hasattr(app, '_message_cache') and conversation_id in app._message_cache:
+            messages = app._message_cache[conversation_id]
+            # Remove from cache after use (one-time use)
+            del app._message_cache[conversation_id]
+            if hasattr(app, '_message_cache_timestamps'):
+                app._message_cache_timestamps.pop(conversation_id, None)
+            print(f"DEBUG: Using cached messages with base64 data for AI processing")
+        else:
+            print(f"DEBUG: No cached messages found, using database messages (may not have image data)")
+        
+        # Fallback to database messages if not in cache
+        if not messages:
+            messages = conversation.get('messages', [])
+        
         if not messages:
             print(f"ERROR: No messages in conversation {conversation_id}")
             return jsonify({"error": "No messages in conversation"}), 400
@@ -422,6 +509,16 @@ def get_ai_response(conversation_id):
                 
                 # Check if model supports streaming (o1 models don't, but gpt-5 models do)
                 from ai_service import AIService
+                
+                # Debug: Check if messages have image attachments
+                has_images = any(
+                    msg.get('attachments') and any(att.get('data') for att in msg.get('attachments', []))
+                    for msg in messages if msg.get('role') == 'user'
+                )
+                if has_images:
+                    print(f"DEBUG: Processing message with image attachment(s)")
+                    print(f"DEBUG: Model {ai_service.response_model} supports vision: {ai_service.response_model in ['gpt-4o', 'gpt-4-vision-preview', 'gpt-4o-mini']}")
+                
                 if not ai_service._supports_streaming(ai_service.response_model):
                     # o1 models don't support streaming - use non-streaming method and simulate streaming
                     print(f"DEBUG: Using non-streaming method for model {ai_service.response_model} (doesn't support streaming)")

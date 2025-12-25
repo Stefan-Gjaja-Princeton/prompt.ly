@@ -3,7 +3,7 @@
 //things that I was more familiar with in this language.
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { Send, User, AlertTriangle } from "lucide-react";
+import { Send, User, AlertTriangle, Paperclip, X } from "lucide-react";
 import "./ChatWindow.css";
 import logo from "../assets/promptly_logo.png";
 import { renderMarkdown } from "../utils/markdown";
@@ -19,9 +19,12 @@ const ChatWindow = ({
   const { user } = useAuth0();
   const [userImageError, setUserImageError] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState([]); // Array of files with previews
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const previousMessageCountRef = useRef(0);
 
   // Handle copy button clicks for code blocks
@@ -64,12 +67,15 @@ const ChatWindow = ({
       if (selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
         const container = range.commonAncestorContainer;
-        
+
         // Only handle if copying from message text
-        if (container.nodeType === Node.TEXT_NODE || container.closest('.message-text')) {
+        if (
+          container.nodeType === Node.TEXT_NODE ||
+          container.closest(".message-text")
+        ) {
           const plainText = selection.toString();
           if (plainText) {
-            e.clipboardData.setData('text/plain', plainText);
+            e.clipboardData.setData("text/plain", plainText);
             e.preventDefault();
           }
         }
@@ -109,9 +115,11 @@ const ChatWindow = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (inputMessage.trim() && !loading) {
-      onSendMessage(inputMessage.trim());
+    if ((inputMessage.trim() || selectedFiles.length > 0) && !loading) {
+      // For now, send the first file (we can expand to multiple files later)
+      onSendMessage(inputMessage.trim(), selectedFiles[0] || null);
       setInputMessage("");
+      setSelectedFiles([]);
 
       // Reset textarea height after sending
       if (inputRef.current) {
@@ -170,6 +178,164 @@ const ChatWindow = ({
     }
   };
 
+  // Helper function to validate and process a file
+  const processFile = (file) => {
+    console.log("DEBUG: Processing file:", {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      sizeMB: (file.size / (1024 * 1024)).toFixed(2),
+    });
+
+    // Validate file type (images and PDFs)
+    const isValidType =
+      file.type.startsWith("image/") ||
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf") ||
+      file.name.toLowerCase().endsWith(".png") ||
+      file.name.toLowerCase().endsWith(".jpg") ||
+      file.name.toLowerCase().endsWith(".jpeg");
+
+    if (!isValidType) {
+      console.error("DEBUG: Invalid file type:", file.type);
+      alert("Please select an image file (PNG, JPG) or PDF");
+      return null;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      console.error("DEBUG: File too large:", file.size, "bytes");
+      alert("File size must be less than 10MB");
+      return null;
+    }
+
+    return file;
+  };
+
+  // Helper function to create file preview object
+  const createFilePreview = (file, callback) => {
+    const isImage =
+      file.type.startsWith("image/") ||
+      file.name.toLowerCase().match(/\.(png|jpg|jpeg)$/i);
+
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        console.log(
+          "DEBUG: File preview created, size:",
+          e.target.result.length,
+          "chars"
+        );
+        callback({
+          file,
+          preview: e.target.result,
+          type: "image",
+        });
+      };
+      reader.onerror = (error) => {
+        console.error("DEBUG: Error reading file:", error);
+        alert("Failed to read file. Please try again.");
+        callback(null);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // PDF - no preview image, just metadata
+      callback({
+        file,
+        preview: null,
+        type: "pdf",
+      });
+    }
+  };
+
+  // Handle file selection
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log("DEBUG: No file selected");
+      return;
+    }
+
+    // Check if we already have 3 files
+    if (selectedFiles.length >= 3) {
+      alert("You can only attach up to 3 files at a time");
+      return;
+    }
+
+    const validFile = processFile(file);
+    if (!validFile) return;
+
+    createFilePreview(validFile, (filePreviewObj) => {
+      if (filePreviewObj) {
+        setSelectedFiles((prev) => [...prev, filePreviewObj]);
+      }
+    });
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Remove selected file by index
+  const handleRemoveFile = (index, e) => {
+    e.stopPropagation();
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle drag and drop
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set isDragging to false if we're leaving the chat window entirely
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      // Process up to 3 files or until we reach the limit
+      const filesToAdd = Array.from(files).slice(0, 3 - selectedFiles.length);
+
+      if (files.length > filesToAdd.length) {
+        alert(
+          `You can only attach up to 3 files. Adding the first ${filesToAdd.length} file(s).`
+        );
+      }
+
+      filesToAdd.forEach((file) => {
+        console.log("DEBUG: File dropped:", file.name, file.type, file.size);
+
+        const validFile = processFile(file);
+        if (!validFile) return;
+
+        createFilePreview(validFile, (filePreviewObj) => {
+          if (filePreviewObj) {
+            setSelectedFiles((prev) => [...prev, filePreviewObj]);
+          }
+        });
+      });
+    }
+  };
+
   const formatTime = (timestamp) => {
     return new Date(timestamp).toLocaleTimeString([], {
       hour: "2-digit",
@@ -178,7 +344,13 @@ const ChatWindow = ({
   };
 
   return (
-    <div className="chat-window">
+    <div
+      className={`chat-window ${isDragging ? "drag-over" : ""}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="chat-header">
         <div className="chat-title">
           <PromptlyMascot size={30} />
@@ -192,6 +364,14 @@ const ChatWindow = ({
         )}
       </div>
 
+      {isDragging && (
+        <div className="drag-overlay">
+          <div className="drag-overlay-content">
+            <Paperclip size={48} />
+            <p>Drop your files here to attach them! (PDF, PNG, JPG)</p>
+          </div>
+        </div>
+      )}
       <div className="messages-container" ref={messagesContainerRef}>
         {messages.length === 0 ? (
           <div className="empty-chat">
@@ -243,6 +423,11 @@ const ChatWindow = ({
                   <div className="message-time">
                     {formatTime(message.timestamp)}
                   </div>
+                  {message.attachments && message.attachments.length > 0 && (
+                    <div className="message-attachment-indicator">
+                      This message had an attachment
+                    </div>
+                  )}
                 </div>
               </div>
             ))
@@ -275,7 +460,61 @@ const ChatWindow = ({
         </div>
       ) : (
         <form className="input-form" onSubmit={handleSubmit}>
+          {selectedFiles.length > 0 && (
+            <div className="file-preview-container">
+              {selectedFiles.map((fileObj, index) => (
+                <div key={index} className="file-preview-item">
+                  {fileObj.type === "image" ? (
+                    <img
+                      src={fileObj.preview}
+                      alt={fileObj.file.name}
+                      className="file-preview-image"
+                      title={fileObj.file.name}
+                    />
+                  ) : (
+                    <div className="file-preview-pdf" title={fileObj.file.name}>
+                      <Paperclip size={20} />
+                      <span className="file-preview-pdf-name">
+                        {fileObj.file.name}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="file-preview-remove"
+                    onClick={(e) => handleRemoveFile(index, e)}
+                    title="Remove file"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="input-container" onClick={handleContainerClick}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,image/png,image/jpeg,application/pdf"
+              onChange={handleFileSelect}
+              className="file-input-hidden"
+              id="file-input"
+              disabled={loading || selectedFiles.length >= 3}
+            />
+            <label
+              htmlFor="file-input"
+              className="file-input-label"
+              title={
+                selectedFiles.length >= 3
+                  ? "Maximum 3 files allowed"
+                  : "Attach file (PDF, PNG, JPG)"
+              }
+            >
+              <Paperclip size={18} />
+              {selectedFiles.length > 0 && (
+                <span className="file-count-badge">{selectedFiles.length}</span>
+              )}
+            </label>
             <textarea
               ref={inputRef}
               value={inputMessage}
@@ -290,7 +529,9 @@ const ChatWindow = ({
             <button
               type="submit"
               className="send-button"
-              disabled={!inputMessage.trim() || loading}
+              disabled={
+                (!inputMessage.trim() && selectedFiles.length === 0) || loading
+              }
             >
               <Send size={18} />
             </button>

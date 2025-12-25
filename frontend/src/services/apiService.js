@@ -110,13 +110,20 @@ export const createApiService = (getAccessTokenSilently) => {
       return response.data;
     },
 
-    // Send a message to a conversation
-    sendMessage: async (conversationId, message) => {
+    // Send a message to a conversation (with optional file attachment)
+    sendMessage: async (conversationId, message, fileAttachment = null) => {
+      const payload = {
+        message: message,
+      };
+      
+      // Add file attachment if provided
+      if (fileAttachment) {
+        payload.file_attachment = fileAttachment;
+      }
+      
       const response = await api.post(
         `/conversations/${conversationId}/messages`,
-        {
-          message: message,
-        }
+        payload
       );
       return response.data;
     },

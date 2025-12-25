@@ -23,6 +23,109 @@ class AIService:
         model_lower = model.lower()
         return not any(non_streaming_model in model_lower for non_streaming_model in non_streaming_models)
     
+    def _extract_pdf_text(self, base64_data: str) -> str:
+        """Extract text content from a PDF file"""
+        try:
+            import base64
+            import io
+            from PyPDF2 import PdfReader
+            
+            # Decode base64 to bytes
+            pdf_bytes = base64.b64decode(base64_data)
+            pdf_stream = io.BytesIO(pdf_bytes)
+            
+            # Read PDF
+            pdf_reader = PdfReader(pdf_stream)
+            text_content = []
+            
+            # Extract text from each page
+            for page_num, page in enumerate(pdf_reader.pages):
+                page_text = page.extract_text()
+                if page_text.strip():
+                    text_content.append(f"--- Page {page_num + 1} ---\n{page_text}")
+            
+            extracted_text = "\n\n".join(text_content)
+            print(f"DEBUG: Extracted {len(extracted_text)} characters from PDF ({len(pdf_reader.pages)} pages)")
+            return extracted_text
+        except ImportError:
+            print("ERROR: PyPDF2 not installed. Install with: pip install PyPDF2")
+            return "[PDF content could not be extracted - PyPDF2 library not installed]"
+        except Exception as e:
+            print(f"ERROR: Failed to extract PDF text: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return f"[PDF content could not be extracted: {str(e)}]"
+    
+    def _format_message_with_attachments(self, msg: Dict) -> Dict:
+        """Format a message for OpenAI API, handling text, image, and PDF attachments"""
+        role = msg.get('role')
+        content = msg.get('content', '')
+        attachments = msg.get('attachments', [])
+        
+        # Separate image and PDF attachments
+        image_attachments = [att for att in attachments if att.get('data') and att.get('file_type', '').startswith('image/')]
+        pdf_attachments = [
+            att for att in attachments 
+            if att.get('data') and (
+                att.get('file_type', '') == 'application/pdf' or
+                att.get('filename', '').lower().endswith('.pdf')
+            )
+        ]
+        
+        # Extract text from PDFs and append to content
+        pdf_texts = []
+        for pdf_att in pdf_attachments:
+            pdf_text = self._extract_pdf_text(pdf_att.get('data'))
+            pdf_filename = pdf_att.get('filename', 'document.pdf')
+            pdf_texts.append(f"[Content from {pdf_filename}]\n{pdf_text}")
+        
+        # Combine original content with PDF text
+        combined_content = content
+        if pdf_texts:
+            combined_content = (content + "\n\n" + "\n\n".join(pdf_texts)).strip() if content else "\n\n".join(pdf_texts)
+        
+        # If there are image attachments, format for vision API
+        if image_attachments:
+            # Format as content array for vision API
+            content_array = []
+            
+            # Add text content if present (including PDF-extracted text)
+            if combined_content and combined_content.strip():
+                content_array.append({
+                    "type": "text",
+                    "text": str(combined_content)
+                })
+            
+            # Add image attachments
+            for att in image_attachments:
+                base64_data = att.get('data')
+                file_type = att.get('file_type', 'image/jpeg')
+                # Format as data URL for OpenAI
+                data_url = f"data:{file_type};base64,{base64_data}"
+                content_array.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": data_url
+                    }
+                })
+            
+            return {
+                "role": role,
+                "content": content_array
+            }
+        elif pdf_attachments:
+            # PDFs but no images - return text message with extracted PDF content
+            return {
+                "role": role,
+                "content": combined_content if combined_content else "[PDF content could not be extracted]"
+            }
+        else:
+            # Regular text message
+            return {
+                "role": role,
+                "content": str(content) if content else ""
+            }
+    
     def get_chat_response(self, messages: List[Dict], quality_score: float, user_name: str = None) -> str:
         """Get response from the main chat AI based on quality score"""
         
@@ -51,14 +154,13 @@ class AIService:
             # Remove timestamp fields which OpenAI doesn't accept
             formatted_messages = [{"role": "system", "content": system_prompt}]
             for msg in messages:
-                if isinstance(msg, dict) and 'role' in msg and 'content' in msg:
+                if isinstance(msg, dict) and 'role' in msg:
                     role = msg['role']
                     # Only include user and assistant messages (skip system)
                     if role in ['user', 'assistant']:
-                        formatted_messages.append({
-                            "role": role,
-                            "content": str(msg['content'])
-                        })
+                        # Use helper function to format messages with attachments
+                        formatted_msg = self._format_message_with_attachments(msg)
+                        formatted_messages.append(formatted_msg)
             
             if len(formatted_messages) <= 1:  # Only system message
                 raise ValueError("No user or assistant messages found in conversation")
@@ -135,6 +237,17 @@ class AIService:
             print(f"DEBUG: Streaming with {len(formatted_messages)} messages to OpenAI")
             print(f"DEBUG: Model: {self.response_model}")
             
+            # Format messages for OpenAI API (handling attachments)
+            formatted_messages = [{"role": "system", "content": system_prompt}]
+            for msg in messages:
+                if isinstance(msg, dict) and 'role' in msg:
+                    role = msg['role']
+                    # Only include user and assistant messages (skip system)
+                    if role in ['user', 'assistant']:
+                        # Use helper function to format messages with attachments
+                        formatted_msg = self._format_message_with_attachments(msg)
+                        formatted_messages.append(formatted_msg)
+            
             # OpenAI API with streaming
             api_params = {
                 "model": self.response_model,
@@ -158,12 +271,58 @@ class AIService:
             print(f"ERROR: Traceback: {traceback.format_exc()}")
             raise
     
+    def _format_messages_for_feedback(self, messages: List[Dict]) -> List[Dict]:
+        """Format messages for feedback model, extracting PDF text and noting images"""
+        formatted_messages = []
+        for msg in messages:
+            msg_copy = msg.copy()
+            content = msg_copy.get('content', '')
+            attachments = msg_copy.get('attachments', [])
+            
+            # Process attachments
+            pdf_texts = []
+            image_count = 0
+            for att in attachments:
+                file_type = att.get('file_type', '')
+                filename = att.get('filename', '')
+                
+                # Extract PDF text
+                if (file_type == 'application/pdf' or filename.lower().endswith('.pdf')) and att.get('data'):
+                    pdf_text = self._extract_pdf_text(att.get('data'))
+                    pdf_texts.append(f"[Content from {filename}]\n{pdf_text}")
+                
+                # Count images (for now, just note them)
+                elif file_type.startswith('image/'):
+                    image_count += 1
+            
+            # Combine content with PDF text
+            combined_content = content
+            if pdf_texts:
+                combined_content = (content + "\n\n" + "\n\n".join(pdf_texts)).strip() if content else "\n\n".join(pdf_texts)
+            
+            # Note images if present
+            if image_count > 0:
+                image_note = f"\n\n[User attached {image_count} image file(s)]"
+                combined_content = combined_content + image_note if combined_content else f"[User attached {image_count} image file(s)]"
+            
+            # Remove attachments and update content
+            if 'attachments' in msg_copy:
+                del msg_copy['attachments']
+            msg_copy['content'] = combined_content
+            
+            formatted_messages.append(msg_copy)
+        
+        return formatted_messages
+    
     def get_feedback_response(self, messages: List[Dict], previous_scores: List[float] = None) -> Tuple[float, str, float]:
         """Get feedback and quality score for the conversation"""
         
+        # Format messages to include PDF text and note images
+        formatted_messages = self._format_messages_for_feedback(messages)
+        
         # Calculate conversation length and context
-        conversation_length = len(messages)
-        user_messages = [msg for msg in messages if msg.get('role') == 'user']
+        conversation_length = len(formatted_messages)
+        user_messages = [msg for msg in formatted_messages if msg.get('role') == 'user']
         conversation_depth = len(user_messages)
         
         # Use previous scores for context, default to empty list
@@ -181,7 +340,7 @@ class AIService:
 
 CONVERSATION CONTEXT:
 - Total messages: {conversation_length}
-- User messages: {messages}
+- User messages: {user_messages}
 - Previous scores: {previous_scores}
 - This is message #{conversation_depth} in the conversation
 
@@ -203,6 +362,7 @@ SCORING CRITERIA (be EXTREMELY TOUGH and consider conversation history):
    - "summarize this" = 1/10 (too vague, no context)
    - "I don't know" = 1/10 (no specificity at all)
    - "summarize the key findings around copyright infringement from the research paper I shared about AI ethics, with quotes" = 10/10
+   - If the user attached a file and is a bit vague but you can understand more of the request based on the image, feel free to score a bit more leniently.
 
 2. CRITICAL THINKING (1-10): Does the prompt show analysis or reasoning?
    - Simple requests that are not well thought through = 2/10
@@ -268,7 +428,7 @@ Format your response as JSON:
                 "model": self.feedback_model,
                 "messages": [
                     {"role": "system", "content": feedback_prompt},
-                    {"role": "user", "content": f"Analyze this conversation:\n{json.dumps(messages, indent=2)}"}
+                    {"role": "user", "content": f"Analyze this conversation:\n{json.dumps(formatted_messages, indent=2)}"}
                 ],
                 "max_tokens": 600,
                 "temperature": 0.2  # seems to make the scoring more consistent

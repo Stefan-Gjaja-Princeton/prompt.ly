@@ -132,15 +132,66 @@ function App() {
     return conversationId;
   };
 
-  const sendMessage = async (message) => {
+  const sendMessage = async (message, file = null) => {
     // Mark that we're sending a message to prevent loadConversation from clearing messages
     isSendingMessageRef.current = true;
+
+    // Convert file to base64 if provided
+    // file is a fileObj with {file, preview, type} from ChatWindow
+    let fileAttachment = null;
+    if (file && file.file) {
+      const actualFile = file.file;
+      console.log('DEBUG: Converting file to base64:', actualFile.name, actualFile.type, actualFile.size);
+      try {
+        // If it's an image and we already have a preview with base64, use that
+        let fileBase64;
+        if (file.type === 'image' && file.preview) {
+          // Extract base64 from preview data URL
+          fileBase64 = file.preview.split(',')[1];
+          console.log('DEBUG: Using existing preview base64, length:', fileBase64.length);
+        } else {
+          // For PDFs or if preview not available, read the file
+          fileBase64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              // Remove data:...;base64, prefix
+              const base64 = e.target.result.split(',')[1];
+              console.log('DEBUG: File converted to base64, length:', base64.length);
+              resolve(base64);
+            };
+            reader.onerror = (error) => {
+              console.error('ERROR: Error converting file to base64:', error);
+              reject(error);
+            };
+            reader.readAsDataURL(actualFile);
+          });
+        }
+        
+        fileAttachment = {
+          filename: actualFile.name,
+          file_type: actualFile.type || (actualFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+          data: fileBase64
+        };
+        console.log('DEBUG: File ready to send:', { fileName: fileAttachment.filename, fileType: fileAttachment.file_type, base64Length: fileBase64.length });
+      } catch (error) {
+        console.error('ERROR: Error converting file to base64:', error);
+        alert('Failed to process file. Please try again.');
+        isSendingMessageRef.current = false;
+        return;
+      }
+    }
 
     // Add user message immediately to the chat FIRST (before any async operations)
     const userMessage = {
       role: "user",
-      content: message,
+      content: message || "",
       timestamp: new Date().toISOString(),
+      ...(fileAttachment && {
+        attachments: [{
+          filename: fileAttachment.filename,
+          file_type: fileAttachment.file_type
+        }]
+      })
     };
     setMessages((prev) => [...prev, userMessage]);
 
@@ -159,7 +210,8 @@ function App() {
       // Backend will create the conversation if it doesn't exist
       const feedbackResponse = await apiService.sendMessage(
         activeConversationId,
-        message
+        message,
+        fileAttachment
       );
 
       console.log("DEBUG: Feedback Response:", feedbackResponse);
