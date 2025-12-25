@@ -166,6 +166,20 @@
   overflow-wrap: break-word;
   max-width: 100%;
   min-width: 0;
+  /* Make text copy as plain text without background colors */
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Make text selection copy as plain text without background */
+.message-text::selection {
+  background-color: rgba(0, 123, 255, 0.3);
+  color: inherit;
+}
+
+.message-text *::selection {
+  background-color: rgba(0, 123, 255, 0.3);
+  color: inherit;
 }
 
 .message-text p {

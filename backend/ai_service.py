@@ -10,10 +10,18 @@ class AIService:
         self.response_model = "gpt-4o" # Model for chat responses (reasoning model)
         self.feedback_model = "gpt-4o" # Model for feedback generation
     
-    def _is_reasoning_model(self, model: str) -> bool:
-        """Check if the model is a reasoning model (o1) that only supports temperature=1.0"""
-        reasoning_models = ['o1', 'o1-preview', 'o1-mini', 'gpt-5']
-        return any(reasoning_model in model.lower() for reasoning_model in reasoning_models)
+    def _is_temperature_restricted_model(self, model: str) -> bool:
+        """Check if the model only supports temperature=1.0 (default) - o1 models and gpt-5 models"""
+        temperature_restricted = ['o1', 'o1-preview', 'o1-mini', 'gpt-5']
+        model_lower = model.lower()
+        return any(restricted_model in model_lower for restricted_model in temperature_restricted)
+    
+    def _supports_streaming(self, model: str) -> bool:
+        """Check if the model supports streaming - o1 models don't support streaming, but gpt-5 models do"""
+        # o1 models don't support streaming
+        non_streaming_models = ['o1', 'o1-preview', 'o1-mini']
+        model_lower = model.lower()
+        return not any(non_streaming_model in model_lower for non_streaming_model in non_streaming_models)
     
     def get_chat_response(self, messages: List[Dict], quality_score: float, user_name: str = None) -> str:
         """Get response from the main chat AI based on quality score"""
@@ -61,12 +69,12 @@ class AIService:
             print(f"DEBUG: Last user message: {formatted_messages[-1] if formatted_messages else 'None'}")
             
             # openAI API
-            # Reasoning models (o1, gpt-5) only support temperature=1.0 (default), so don't set it
+            # Some models (o1, gpt-5) only support temperature=1.0 (default), so don't set it
             api_params = {
                 "model": self.response_model,
                 "messages": formatted_messages
             }
-            if not self._is_reasoning_model(self.response_model):
+            if not self._is_temperature_restricted_model(self.response_model):
                 api_params["temperature"] = 0.7
             
             response = self.client.chat.completions.create(**api_params)
@@ -133,7 +141,7 @@ class AIService:
                 "messages": formatted_messages,
                 "stream": True
             }
-            if not self._is_reasoning_model(self.response_model):
+            if not self._is_temperature_restricted_model(self.response_model):
                 api_params["temperature"] = 0.7
             
             stream = self.client.chat.completions.create(**api_params)
@@ -239,7 +247,7 @@ EXAMPLES OF HIGH SCORES:
 Provide:
 1. A numerical score (1-10) - be strict!
 2. A quality label: "Poor" (1-4), "Fair" (4.1-6), "Good" (6.1-8), or "Excellent" (8.1-10)
-3. Exactly 3 improvement tips as an array of strings - be specific and actionable
+3. Exactly 3 improvement tips as an array of strings - be specific and actionable, and pretend you are the AI model the user is interacting with, using second person to refer to the user and first person to refer to the AI model.
 4. An example improved prompt that demonstrates how the user could have written their message better
 
 Format your response as JSON:

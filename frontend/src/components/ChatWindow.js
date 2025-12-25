@@ -58,9 +58,29 @@ const ChatWindow = ({
       }
     };
 
+    // Handle copy events to ensure plain text is copied (no background colors)
+    const handleCopy = (e) => {
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        
+        // Only handle if copying from message text
+        if (container.nodeType === Node.TEXT_NODE || container.closest('.message-text')) {
+          const plainText = selection.toString();
+          if (plainText) {
+            e.clipboardData.setData('text/plain', plainText);
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
     document.addEventListener("click", handleCopyClick);
+    document.addEventListener("copy", handleCopy);
     return () => {
       document.removeEventListener("click", handleCopyClick);
+      document.removeEventListener("copy", handleCopy);
     };
   }, [messages]);
 

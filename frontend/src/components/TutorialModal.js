@@ -1,0 +1,202 @@
+import React, { useState } from "react";
+import { X, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
+import "./TutorialModal.css";
+
+// EDIT THIS ARRAY TO CUSTOMIZE THE TUTORIAL SLIDES
+// Each slide should have a title and content (which can include HTML/JSX)
+const TUTORIAL_SLIDES = [
+  {
+    title: "Welcome to prompt.ly!",
+    content: (
+      <div>
+        <p>
+          prompt.ly gives you responses just like any other chatbot, but it
+          gives you feedback so you can prompt better too!
+        </p>
+        <p>
+          To open a new conversation, click the <strong>+</strong> button.
+        </p>
+      </div>
+    ),
+  },
+  {
+    title: "Understanding Feedback",
+    content: (
+      <div>
+        <p>The feedback panel on the right shows:</p>
+        <ul>
+          <li>
+            <strong>Quality Score:</strong> How well-written your prompt is
+            (0-10)
+          </li>
+          <li>
+            <strong>Feedback:</strong> Specific suggestions for improvement
+          </li>
+          <li>
+            <strong>Example Improved Prompt:</strong> An example of an improved
+            prompt to score better.
+          </li>
+        </ul>
+      </div>
+    ),
+  },
+  {
+    title: "Quality Scores",
+    content: (
+      <div>
+        <p>Scores below 5 result in shorter, more direct responses.</p>
+        <p>
+          Higher scores (7+) lead to more detailed and comprehensive answers.
+        </p>
+        <p>
+          Use the feedback to improve your prompts and achieve better scores!
+        </p>
+        <p> Press the information icon to learn more about how scores work.</p>
+      </div>
+    ),
+  },
+  {
+    title: "Good vs Bad Prompting",
+    content: (
+      <div>
+        <p>
+          A <b>good prompt</b> is specific, provides context, and makes clear
+          what you will do with the output. A <b>bad prompt</b> is vague,
+          expects prompt.ly to do all the work, or does not make clear what you
+          will do with the output.
+        </p>
+        <div className="prompt-examples">
+          <div className="prompt-example good-prompt">
+            <p>
+              <b>Good Prompt:</b> "I'm writing an essay about ___. I want to
+              argue ____. Give me a body paragraph outline that I can flesh out
+              with examples."
+            </p>
+          </div>
+          <div className="prompt-example bad-prompt">
+            <p>
+              <b>Bad Prompt:</b>"Write me an essay about ___."
+            </p>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+
+  {
+    title: "Pro Tips",
+    content: (
+      <div>
+        <ol>
+          <li>
+            If you're not happy with the response or your score, you can reset
+            the conversation and try again - just press the plus button!
+          </li>
+          <li>
+            The improved prompt example can give you inspiration for how to
+            improve your next prompt.
+          </li>
+          <li>
+            Take a second to think about your prompt before you send it - this
+            will help you get a better score.
+          </li>
+        </ol>
+      </div>
+    ),
+  },
+];
+
+const TutorialModal = ({ isOpen, onClose }) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  if (!isOpen) return null;
+
+  const slides = TUTORIAL_SLIDES;
+  const totalSlides = slides.length;
+
+  const handleNext = () => {
+    if (currentSlide < totalSlides - 1) {
+      setCurrentSlide(currentSlide + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentSlide > 0) {
+      setCurrentSlide(currentSlide - 1);
+    }
+  };
+
+  const handleClose = () => {
+    setCurrentSlide(0);
+    onClose();
+  };
+
+  const currentSlideData = slides[currentSlide];
+
+  return (
+    <div className="tutorial-modal-overlay" onClick={handleClose}>
+      <div
+        className="tutorial-modal-content"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="tutorial-modal-header">
+          <div className="tutorial-modal-title">
+            <HelpCircle size={24} />
+            <h2>How to use prompt.ly</h2>
+          </div>
+          <button
+            className="tutorial-modal-close"
+            onClick={handleClose}
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="tutorial-modal-body">
+          <div className="tutorial-slide">
+            <h3>{currentSlideData.title}</h3>
+            <div className="tutorial-slide-content">
+              {currentSlideData.content}
+            </div>
+          </div>
+        </div>
+
+        <div className="tutorial-modal-footer">
+          <button
+            className="tutorial-nav-button"
+            onClick={handlePrevious}
+            disabled={currentSlide === 0}
+            title="Previous"
+          >
+            <ChevronLeft size={20} />
+          </button>
+
+          <div className="tutorial-slide-indicators">
+            {slides.map((_, index) => (
+              <button
+                key={index}
+                className={`tutorial-slide-dot ${
+                  index === currentSlide ? "active" : ""
+                }`}
+                onClick={() => setCurrentSlide(index)}
+                title={`Go to slide ${index + 1}`}
+              />
+            ))}
+          </div>
+
+          <button
+            className="tutorial-nav-button"
+            onClick={handleNext}
+            disabled={currentSlide === totalSlides - 1}
+            title="Next"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TutorialModal;

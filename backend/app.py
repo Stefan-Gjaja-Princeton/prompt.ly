@@ -420,11 +420,11 @@ def get_ai_response(conversation_id):
                 import time
                 import sys
                 
-                # Check if model supports streaming (reasoning models don't)
+                # Check if model supports streaming (o1 models don't, but gpt-5 models do)
                 from ai_service import AIService
-                if ai_service._is_reasoning_model(ai_service.response_model):
-                    # Reasoning models don't support streaming - use non-streaming method and simulate streaming
-                    print(f"DEBUG: Using non-streaming method for reasoning model {ai_service.response_model}")
+                if not ai_service._supports_streaming(ai_service.response_model):
+                    # o1 models don't support streaming - use non-streaming method and simulate streaming
+                    print(f"DEBUG: Using non-streaming method for model {ai_service.response_model} (doesn't support streaming)")
                     ai_response = ai_service.get_chat_response(messages, current_quality_score, user_name=first_name)
                     
                     if not ai_response:
@@ -447,7 +447,7 @@ def get_ai_response(conversation_id):
                         time.sleep(0.05)
                     
                 else:
-                    # Stream AI response for models that support it
+                    # Stream AI response for models that support it (gpt-5 models, gpt-4o, etc.)
                     for chunk in ai_service.get_chat_response_stream(messages, current_quality_score, user_name=first_name):
                         if chunk:
                             full_response += chunk

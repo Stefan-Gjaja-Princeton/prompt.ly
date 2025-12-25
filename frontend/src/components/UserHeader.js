@@ -3,12 +3,14 @@ experience with frontend development, especially using React, so it could help m
 things that I was more familiar with in this language. */
 import React, { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, HelpCircle } from "lucide-react";
 import "./UserHeader.css";
+import TutorialModal from "./TutorialModal";
 
 const UserHeader = () => {
   const { user, logout } = useAuth0();
   const [imageError, setImageError] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   if (!user) return null;
 
@@ -23,31 +25,44 @@ const UserHeader = () => {
   const showImage = user.picture && !imageError;
 
   return (
-    <div className="user-header">
-      <div className="user-info">
-        {showImage ? (
-          <img
-            src={user.picture}
-            alt={user.name}
-            className="user-avatar"
-            crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
-            onError={handleImageError}
-          />
-        ) : (
-          <div className="user-avatar-placeholder">
-            <User size={20} />
+    <>
+      <div className="user-header">
+        <div className="user-info">
+          {showImage ? (
+            <img
+              src={user.picture}
+              alt={user.name}
+              className="user-avatar"
+              crossOrigin="anonymous"
+              referrerPolicy="no-referrer"
+              onError={handleImageError}
+            />
+          ) : (
+            <div className="user-avatar-placeholder">
+              <User size={20} />
+            </div>
+          )}
+          <div className="user-details">
+            <span className="user-name">{user.name}</span>
+            <span className="user-email">{user.email}</span>
           </div>
-        )}
-        <div className="user-details">
-          <span className="user-name">{user.name}</span>
-          <span className="user-email">{user.email}</span>
+        </div>
+        <div className="user-header-actions">
+          <button
+            className="help-button"
+            onClick={() => setShowTutorial(true)}
+            title="How to use prompt.ly"
+          >
+            <HelpCircle size={18} />
+            <span>How to use prompt.ly</span>
+          </button>
+          <button className="logout-button" onClick={handleLogout} title="Logout">
+            <LogOut size={18} />
+          </button>
         </div>
       </div>
-      <button className="logout-button" onClick={handleLogout} title="Logout">
-        <LogOut size={18} />
-      </button>
-    </div>
+      <TutorialModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
+    </>
   );
 };
 

@@ -15,7 +15,7 @@ const FeedbackPanel = ({
 }) => {
   const getScoreColor = (score) => {
     if (score === null) return "#6c757d"; // Gray for no score
-    if (score >= 8) return "#004600";
+    if (score >= 8) return "#008500";
     if (score >= 6) return "#fdb515";
     if (score >= 4) return "#f28500";
     return "#dc3545";

@@ -57,6 +57,37 @@
   opacity: 0.9;
 }
 
+.user-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.help-button {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(100, 100, 100, 0.45);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: gray;
+  cursor: pointer;
+  transition: background-color 0.2s ease, filter 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.help-button:hover {
+  background: rgba(200, 200, 200, 0.3);
+  filter: brightness(0.85);
+}
+
+.help-button:active {
+  background: rgba(150, 150, 150, 0.4);
+  filter: brightness(0.75);
+}
+
 .logout-button {
   background: rgba(255, 255, 255, 0.18);
   border: 1px solid rgba(100, 100, 100, 0.45);
