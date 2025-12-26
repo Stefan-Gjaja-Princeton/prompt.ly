@@ -17,7 +17,7 @@ const ConversationList = ({
     if (!dateString) return "Unknown";
     const date = new Date(dateString);
     const now = new Date();
-    
+
     // Calculate difference in days (not absolute, to handle timezone issues)
     const diffTime = now - date;
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -36,7 +36,9 @@ const ConversationList = ({
         <h2>Conversations</h2>
         <div className="new-conversation-btn-wrapper">
           <button
-            className={`new-conversation-btn ${isNewConversation ? "disabled" : ""}`}
+            className={`new-conversation-btn ${
+              isNewConversation ? "disabled" : ""
+            }`}
             onClick={onCreateNew}
             title={isNewConversation ? undefined : "Start new conversation"}
             disabled={isNewConversation}
@@ -44,7 +46,9 @@ const ConversationList = ({
             <Plus size={20} />
           </button>
           {isNewConversation && (
-            <div className="tooltip">You have a new conversation open in the main window.</div>
+            <div className="tooltip">
+              You have a new conversation open in the main window.
+            </div>
           )}
         </div>
       </div>
@@ -59,9 +63,7 @@ const ConversationList = ({
           <div className="empty-state">
             <MessageSquare size={48} className="empty-icon" />
             <p>No conversations yet</p>
-            <button className="start-conversation-btn" onClick={onCreateNew}>
-              Start your first conversation
-            </button>
+            <p>Start your first conversation in the main window!</p>
           </div>
         ) : (
           conversations.map((conversation) => (
@@ -80,7 +82,8 @@ const ConversationList = ({
                 </h3>
                 <div className="conversation-meta">
                   <span className="message-count">
-                    {conversation.message_count || 0} {conversation.message_count === 1 ? 'message' : 'messages'}
+                    {conversation.message_count || 0}{" "}
+                    {conversation.message_count === 1 ? "message" : "messages"}
                   </span>
                   <span className="conversation-date">
                     <Clock size={12} />
