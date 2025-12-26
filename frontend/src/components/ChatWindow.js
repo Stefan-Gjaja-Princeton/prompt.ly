@@ -567,7 +567,6 @@ const ChatWindow = ({
               placeholder="Type your message here..."
               className="message-input"
               rows="1"
-              disabled={loading}
             />
             <button
               type="submit"

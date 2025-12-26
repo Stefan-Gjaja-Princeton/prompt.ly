@@ -6,7 +6,7 @@ from database import Database
 from ai_service import AIService
 from auth_service import require_auth
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 
@@ -308,7 +308,7 @@ def send_message(conversation_id):
         user_msg = {
             "role": "user",
             "content": user_message or "",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         # Add file attachment metadata if provided
@@ -556,7 +556,7 @@ def get_ai_response(conversation_id):
                 ai_message = {
                     "role": "assistant",
                     "content": full_response,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
                 messages.append(ai_message)
                 
