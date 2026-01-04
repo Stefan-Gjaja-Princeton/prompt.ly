@@ -1,6 +1,6 @@
 # WELCOME!!
 
-# This is prompt.ly. Prompt better, think better.
+# This is prompt.ly: Prompt better, think better.
 
 prompt.ly works just like a standard chatbot, but it provides tailored feedback on prompt depth and conceptual understanding too. It also makes its response terser if it detects poor prompt quality.
 
@@ -32,4 +32,8 @@ Businesses are also confronted with a dual-pronged challenge with GenAI - how ca
 
 ## Proof of Efficacy
 
-In the next few weeks, I am running a study to determine if this tool is effective. The format of the study will mirror that of the May 2025 MIT Study that found that heavy LLM use is associated with cognitive decline. In the study, participants will be asked to complete a series of timed SAT-style essays with some form of assistance. This assistance will either be: nothing, Google, ChatGPT, or prompt.ly. Responses will then be independently evaluated for quality, and tests will be run to determine both recall/ownership of the work from the original authors and ability to do the task unassisted. The goal of this experiment is to see if prompt.ly helps test subjects generate high-quality output with stronger senses of ownership and ability to repeat the activity at a later date.
+I am currently running a study to determine if this tool is effective. The format of the study will replicate the methods from the May 2025 MIT Study that found that heavy LLM use is associated with cognitive decline. In the study, participants will be asked to complete a series of timed SAT-style essays with some form of assistance. This assistance will either be: nothing, an LLM of the participant's choice, or prompt.ly. Responses will then be independently evaluated for quality, and tests will be run to determine both recall/ownership of the work from the original authors and ability to do the task unassisted. The goal of this experiment is to see if prompt.ly helps test subjects generate high-quality output with stronger senses of ownership and ability to repeat the activity at a later date.
+
+## Use of AI Disclosure
+
+As I explained in genai_usage_disclosure.md, I marked in the code where I used Cursor, which was the only GenAI tool I used in coding this project. As my writeup describes, I allowed participants in my psychological study's LLM group to use an LLM of their choice. Also, as my writeup described, I used ChatGPT 5.1 to generate prompts for each of my user prototypes to run unbiased use-case testing, and used ChatGPT 5.1 to grade psych study participants' essays with a rubric in an unbiased way. I will also add that the directory structure was also recommended by Cursor - couldn't put that in a specific area in the code.

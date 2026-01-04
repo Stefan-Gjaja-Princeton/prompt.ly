@@ -141,41 +141,41 @@ function App() {
     let fileAttachment = null;
     if (file && file.file) {
       const actualFile = file.file;
-      console.log('DEBUG: Converting file to base64:', actualFile.name, actualFile.type, actualFile.size);
       try {
         // If it's an image and we already have a preview with base64, use that
         let fileBase64;
-        if (file.type === 'image' && file.preview) {
+        if (file.type === "image" && file.preview) {
           // Extract base64 from preview data URL
-          fileBase64 = file.preview.split(',')[1];
-          console.log('DEBUG: Using existing preview base64, length:', fileBase64.length);
+          fileBase64 = file.preview.split(",")[1];
         } else {
           // For PDFs or if preview not available, read the file
           fileBase64 = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
               // Remove data:...;base64, prefix
-              const base64 = e.target.result.split(',')[1];
-              console.log('DEBUG: File converted to base64, length:', base64.length);
+              const base64 = e.target.result.split(",")[1];
               resolve(base64);
             };
             reader.onerror = (error) => {
-              console.error('ERROR: Error converting file to base64:', error);
+              console.error("ERROR: Error converting file to base64:", error);
               reject(error);
             };
             reader.readAsDataURL(actualFile);
           });
         }
-        
+
         fileAttachment = {
           filename: actualFile.name,
-          file_type: actualFile.type || (actualFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
-          data: fileBase64
+          file_type:
+            actualFile.type ||
+            (actualFile.name.toLowerCase().endsWith(".pdf")
+              ? "application/pdf"
+              : "image/jpeg"),
+          data: fileBase64,
         };
-        console.log('DEBUG: File ready to send:', { fileName: fileAttachment.filename, fileType: fileAttachment.file_type, base64Length: fileBase64.length });
       } catch (error) {
-        console.error('ERROR: Error converting file to base64:', error);
-        alert('Failed to process file. Please try again.');
+        console.error("ERROR: Error converting file to base64:", error);
+        alert("Failed to process file. Please try again.");
         isSendingMessageRef.current = false;
         return;
       }
@@ -187,11 +187,13 @@ function App() {
       content: message || "",
       timestamp: new Date().toISOString(),
       ...(fileAttachment && {
-        attachments: [{
-          filename: fileAttachment.filename,
-          file_type: fileAttachment.file_type
-        }]
-      })
+        attachments: [
+          {
+            filename: fileAttachment.filename,
+            file_type: fileAttachment.file_type,
+          },
+        ],
+      }),
     };
     setMessages((prev) => [...prev, userMessage]);
 
@@ -214,28 +216,36 @@ function App() {
         fileAttachment
       );
 
-      console.log("DEBUG: Feedback Response:", feedbackResponse);
-
       // Update feedback and score immediately
       setQualityScore(feedbackResponse.quality_score);
       setFeedback(feedbackResponse.feedback);
       setIsTerse(
         feedbackResponse.quality_score !== null &&
-        feedbackResponse.quality_score <= 5.0
+          feedbackResponse.quality_score <= 5.0
       );
 
       // Store title for later use when updating conversation list
       const updated_title = feedbackResponse.title;
-      
+
       // Update conversation title in the list if it was generated and move to top
       if (updated_title) {
         setConversations((prev) => {
-          const exists = prev.some((conv) => conv.conversation_id === activeConversationId);
+          const exists = prev.some(
+            (conv) => conv.conversation_id === activeConversationId
+          );
           if (exists) {
             // Find and update the conversation, then move it to the top
-            const conv = prev.find((c) => c.conversation_id === activeConversationId);
-            const updatedConv = { ...conv, title: updated_title, updated_at: new Date().toISOString() };
-            const otherConvs = prev.filter((c) => c.conversation_id !== activeConversationId);
+            const conv = prev.find(
+              (c) => c.conversation_id === activeConversationId
+            );
+            const updatedConv = {
+              ...conv,
+              title: updated_title,
+              updated_at: new Date().toISOString(),
+            };
+            const otherConvs = prev.filter(
+              (c) => c.conversation_id !== activeConversationId
+            );
             return [updatedConv, ...otherConvs];
           }
           return prev;
@@ -295,18 +305,18 @@ function App() {
                   }
                 : msg
             );
-            
+
             // Update conversations list - update in place and move to top to avoid flickering
             if (isAuthenticated) {
               // Get current messages count after update - count ALL messages (user + assistant)
               const totalMessageCount = updated.length;
-              
+
               // If this is a new conversation (not in list yet), add it
               setConversations((prevConvs) => {
                 const conversationExists = prevConvs.some(
                   (conv) => conv.conversation_id === activeConversationId
                 );
-                
+
                 if (!conversationExists) {
                   // Add new conversation to the list
                   // Use current timestamp - will be updated from backend on next load
@@ -323,8 +333,14 @@ function App() {
                   // Update existing conversation and move it to the top
                   const updatedConversation = {
                     conversation_id: activeConversationId,
-                    title: updated_title || prevConvs.find(c => c.conversation_id === activeConversationId)?.title,
-                    created_at: prevConvs.find(c => c.conversation_id === activeConversationId)?.created_at,
+                    title:
+                      updated_title ||
+                      prevConvs.find(
+                        (c) => c.conversation_id === activeConversationId
+                      )?.title,
+                    created_at: prevConvs.find(
+                      (c) => c.conversation_id === activeConversationId
+                    )?.created_at,
                     updated_at: new Date().toISOString(),
                     message_count: totalMessageCount,
                   };
@@ -336,7 +352,7 @@ function App() {
                 }
               });
             }
-            
+
             return updated;
           });
 

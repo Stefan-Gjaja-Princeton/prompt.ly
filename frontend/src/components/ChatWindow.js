@@ -204,13 +204,6 @@ const ChatWindow = ({
 
   // Helper function to validate and process a file
   const processFile = (file, showErrorNotification = true) => {
-    console.log("DEBUG: Processing file:", {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      sizeMB: (file.size / (1024 * 1024)).toFixed(2),
-    });
-
     // Validate file type (images and PDFs)
     const isValidType =
       file.type.startsWith("image/") ||
@@ -221,7 +214,6 @@ const ChatWindow = ({
       file.name.toLowerCase().endsWith(".jpeg");
 
     if (!isValidType) {
-      console.error("DEBUG: Invalid file type:", file.type);
       if (showErrorNotification) {
         showNotification("Filetypes supported: PDF, PNG, JPG");
       }
@@ -231,7 +223,6 @@ const ChatWindow = ({
     // Validate file size (max 10MB)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
-      console.error("DEBUG: File too large:", file.size, "bytes");
       if (showErrorNotification) {
         showNotification("File size must be less than 10MB");
       }
@@ -250,19 +241,13 @@ const ChatWindow = ({
     if (isImage) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        console.log(
-          "DEBUG: File preview created, size:",
-          e.target.result.length,
-          "chars"
-        );
         callback({
           file,
           preview: e.target.result,
           type: "image",
         });
       };
-      reader.onerror = (error) => {
-        console.error("DEBUG: Error reading file:", error);
+      reader.onerror = () => {
         alert("Failed to read file. Please try again.");
         callback(null);
       };
@@ -281,7 +266,6 @@ const ChatWindow = ({
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) {
-      console.log("DEBUG: No file selected");
       return;
     }
 
@@ -359,8 +343,6 @@ const ChatWindow = ({
       }
 
       filesToAdd.forEach((file) => {
-        console.log("DEBUG: File dropped:", file.name, file.type, file.size);
-
         const validFile = processFile(file);
         if (!validFile) return;
 

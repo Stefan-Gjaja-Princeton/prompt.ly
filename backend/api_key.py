@@ -1,3 +1,3 @@
-
-OPENAI_API_KEY = "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"
+# IMPORTANT NOTE: Cursor recommended to make a separate file to store my OpenAI API key, so I did this (manually). This actually saved me as I was trying to debug what ended up being a deactivation of my subscription.
+OPENAI_API_KEY = "place-holder-api-key"
 

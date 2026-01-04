@@ -66,3 +66,5 @@ frontend/node_modules/.cache/
 *.tmp
 *.temp
 
+backend/.env
+backend/__pycache__/

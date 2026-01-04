@@ -7,8 +7,15 @@ import json
 class AIService:
     def __init__(self, api_key: str):
         self.client = openai.OpenAI(api_key=api_key)
+        self.api_key = api_key  # Store for debugging (masked)
         self.response_model = "gpt-4o" # Model for chat responses (reasoning model)
         self.feedback_model = "gpt-4o" # Model for feedback generation
+    
+    def _mask_api_key(self, api_key: str) -> str:
+        """Mask API key for logging - shows first 7 and last 4 characters"""
+        if not api_key or len(api_key) < 12:
+            return "***INVALID***"
+        return f"{api_key[:7]}...{api_key[-4:]}"
     
     def _is_temperature_restricted_model(self, model: str) -> bool:
         """Check if the model only supports temperature=1.0 (default) - o1 models and gpt-5 models"""
@@ -45,7 +52,6 @@ class AIService:
                     text_content.append(f"--- Page {page_num + 1} ---\n{page_text}")
             
             extracted_text = "\n\n".join(text_content)
-            print(f"DEBUG: Extracted {len(extracted_text)} characters from PDF ({len(pdf_reader.pages)} pages)")
             return extracted_text
         except ImportError:
             print("ERROR: PyPDF2 not installed. Install with: pip install PyPDF2")
@@ -165,10 +171,16 @@ class AIService:
             if len(formatted_messages) <= 1:  # Only system message
                 raise ValueError("No user or assistant messages found in conversation")
             
-            # code written when I was trying to understand why my messages weren't sending properly
-            print(f"DEBUG: Sending {len(formatted_messages)} messages to OpenAI (1 system + {len(formatted_messages)-1} conversation)")
-            print(f"DEBUG: Model: {self.response_model}")
-            print(f"DEBUG: Last user message: {formatted_messages[-1] if formatted_messages else 'None'}")
+            # Log detailed debug info
+            
+            # Check for image attachments
+            has_images = any(
+                isinstance(msg.get('content'), list) and any(
+                    item.get('type') == 'image_url' for item in msg.get('content', [])
+                )
+                for msg in formatted_messages
+            )
+
             
             # openAI API
             # Some models (o1, gpt-5) only support temperature=1.0 (default), so don't set it
@@ -179,19 +191,45 @@ class AIService:
             if not self._is_temperature_restricted_model(self.response_model):
                 api_params["temperature"] = 0.7
             
-            response = self.client.chat.completions.create(**api_params)
+            
+            try:
+                response = self.client.chat.completions.create(**api_params)
+            except Exception as api_error:
+                print(f"ERROR: Failed to call OpenAI API: {type(api_error).__name__}: {str(api_error)}")
+                raise
             
             # makes sure its going to display properly
             if not response.choices or not response.choices[0].message:
-                raise ValueError("Empty response from OpenAI")
+                raise ValueError("Empty response from OpenAI - no choices in response")
             
             content = response.choices[0].message.content
             if not content:
-                raise ValueError("Empty content in OpenAI response")
+                raise ValueError("Empty content in OpenAI response - message has no content")
             
             return content
+        except openai.APIError as e:
+            # Handle OpenAI API-specific errors
+            error_details = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "status_code": getattr(e, 'status_code', None),
+            }
+            print(f"ERROR: OpenAI API error: {error_details}")
+            import traceback
+            print(f"ERROR: Traceback: {traceback.format_exc()}")
+            raise
+        except openai.RateLimitError as e:
+            error_msg = f"OpenAI API rate limit exceeded: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            raise Exception(f"Rate limit exceeded. Please try again in a moment. Details: {str(e)}")
+        except openai.APIConnectionError as e:
+            error_msg = f"OpenAI API connection error: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            raise Exception(f"Failed to connect to OpenAI API. Please check your internet connection. Details: {str(e)}")
         except Exception as e:
-            print(f"ERROR: OpenAI API error: {str(e)}")
+            error_type = type(e).__name__
+            error_msg = str(e)
+            print(f"ERROR: OpenAI API error ({error_type}): {error_msg}")
             import traceback
             print(f"ERROR: Traceback: {traceback.format_exc()}")
             # Re-raise instead of returning error string so we can see the actual error
@@ -220,23 +258,6 @@ class AIService:
             Be thorough and helpful while encouraging good prompting practices."""
         
         try:
-            # Ensure messages are properly formatted
-            formatted_messages = [{"role": "system", "content": system_prompt}]
-            for msg in messages:
-                if isinstance(msg, dict) and 'role' in msg and 'content' in msg:
-                    role = msg['role']
-                    if role in ['user', 'assistant']:
-                        formatted_messages.append({
-                            "role": role,
-                            "content": str(msg['content'])
-                        })
-            
-            if len(formatted_messages) <= 1:
-                raise ValueError("No user or assistant messages found in conversation")
-            
-            print(f"DEBUG: Streaming with {len(formatted_messages)} messages to OpenAI")
-            print(f"DEBUG: Model: {self.response_model}")
-            
             # Format messages for OpenAI API (handling attachments)
             formatted_messages = [{"role": "system", "content": system_prompt}]
             for msg in messages:
@@ -248,6 +269,19 @@ class AIService:
                         formatted_msg = self._format_message_with_attachments(msg)
                         formatted_messages.append(formatted_msg)
             
+            if len(formatted_messages) <= 1:  # Only system message
+                raise ValueError("No user or assistant messages found in conversation")
+            
+            
+            # Check for image attachments in messages
+            has_images = any(
+                isinstance(msg.get('content'), list) and any(
+                    item.get('type') == 'image_url' for item in msg.get('content', [])
+                )
+                for msg in formatted_messages
+            )
+            
+            
             # OpenAI API with streaming
             api_params = {
                 "model": self.response_model,
@@ -257,16 +291,46 @@ class AIService:
             if not self._is_temperature_restricted_model(self.response_model):
                 api_params["temperature"] = 0.7
             
-            stream = self.client.chat.completions.create(**api_params)
             
+            try:
+                stream = self.client.chat.completions.create(**api_params)
+            except Exception as api_error:
+                print(f"ERROR: Failed to initiate OpenAI API call: {type(api_error).__name__}: {str(api_error)}")
+                raise
+            
+            chunk_count = 0
             for chunk in stream:
                 if chunk.choices and len(chunk.choices) > 0:
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
+                        chunk_count += 1
                         yield delta.content
+        
                         
+        except openai.APIError as e:
+            # Handle OpenAI API-specific errors
+            error_details = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "status_code": getattr(e, 'status_code', None),
+                "response": getattr(e, 'response', None)
+            }
+            print(f"ERROR: OpenAI API error: {error_details}")
+            import traceback
+            print(f"ERROR: Traceback: {traceback.format_exc()}")
+            raise
+        except openai.RateLimitError as e:
+            error_msg = f"OpenAI API rate limit exceeded: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            raise Exception(f"Rate limit exceeded. Please try again in a moment. Details: {str(e)}")
+        except openai.APIConnectionError as e:
+            error_msg = f"OpenAI API connection error: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            raise Exception(f"Failed to connect to OpenAI API. Please check your internet connection. Details: {str(e)}")
         except Exception as e:
-            print(f"ERROR: OpenAI API streaming error: {str(e)}")
+            error_type = type(e).__name__
+            error_msg = str(e)
+            print(f"ERROR: OpenAI API streaming error ({error_type}): {error_msg}")
             import traceback
             print(f"ERROR: Traceback: {traceback.format_exc()}")
             raise
@@ -434,6 +498,7 @@ Format your response as JSON:
                 "temperature": 0.2  # seems to make the scoring more consistent
             }
             
+            
             response = self.client.chat.completions.create(**api_params)
             
             # JSON response
@@ -525,6 +590,7 @@ Format your response as JSON:
                 "max_tokens": 15,
                 "temperature": 0.3
             }
+            
             
             response = self.client.chat.completions.create(**api_params)
             title = response.choices[0].message.content.strip()

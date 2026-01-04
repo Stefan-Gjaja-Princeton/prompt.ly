@@ -48,6 +48,11 @@ if not Config.OPENAI_API_KEY or Config.OPENAI_API_KEY == "your-api-key-here":
 
 ai_service = AIService(Config.OPENAI_API_KEY)
 
+# Initialize message cache (in-memory storage for messages with base64 data)
+# Cache expires after 5 minutes to prevent memory leaks
+app._message_cache = {}
+app._message_cache_timestamps = {}
+
 def extract_user_name(user_data, user_from_db=None):
     """Extract user's first name from Auth0 data or database, with fallbacks"""
     # Priority 1: Database
@@ -77,6 +82,95 @@ def extract_user_name(user_data, user_from_db=None):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "healthy"})
+
+# Endpoint to clear message cache (useful for debugging and recovery)
+@app.route('/api/admin/clear-cache', methods=['POST'])
+@require_auth
+def clear_cache():
+    """Clear the message cache (admin/debugging endpoint)"""
+    try:
+        if hasattr(app, '_message_cache'):
+            cache_size = len(app._message_cache)
+            app._message_cache.clear()
+            if hasattr(app, '_message_cache_timestamps'):
+                app._message_cache_timestamps.clear()
+            return jsonify({
+                "message": "Cache cleared successfully",
+                "entries_cleared": cache_size
+            })
+        else:
+            return jsonify({"message": "Cache was already empty"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Debug endpoint to test OpenAI API connectivity
+@app.route('/api/debug/test-openai', methods=['POST'])
+@require_auth
+def test_openai():
+    """Test OpenAI API connectivity and configuration"""
+    try:
+        test_messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Say 'Hello, API test successful!' and nothing else."}
+        ]
+        
+        # Mask API key for display (show first 7 and last 4 chars)
+        def mask_api_key(key):
+            if not key or len(key) < 12:
+                return "***INVALID***"
+            return f"{key[:7]}...{key[-4:]}"
+        
+        result = {
+            "status": "testing",
+            "model": ai_service.response_model,
+            "api_key_set": bool(Config.OPENAI_API_KEY and Config.OPENAI_API_KEY != "your-api-key-here"),
+            "api_key_length": len(Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else 0,
+            "api_key_preview": mask_api_key(Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else "NOT SET"
+        }
+        
+        try:
+            response = ai_service.client.chat.completions.create(
+                model=ai_service.response_model,
+                messages=test_messages,
+                max_tokens=50
+            )
+            
+            if response.choices and response.choices[0].message:
+                content = response.choices[0].message.content
+                result.update({
+                    "status": "success",
+                    "response": content,
+                    "usage": {
+                        "prompt_tokens": response.usage.prompt_tokens if hasattr(response, 'usage') and response.usage else None,
+                        "completion_tokens": response.usage.completion_tokens if hasattr(response, 'usage') and response.usage else None,
+                        "total_tokens": response.usage.total_tokens if hasattr(response, 'usage') and response.usage else None
+                    }
+                })
+            else:
+                result.update({
+                    "status": "error",
+                    "error": "Empty response from OpenAI"
+                })
+                
+        except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)
+            result.update({
+                "status": "error",
+                "error_type": error_type,
+                "error": error_msg
+            })
+            print(f"ERROR: OpenAI API test failed: {error_type}: {error_msg}")
+            import traceback
+            print(traceback.format_exc())
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": f"Test endpoint error: {str(e)}"
+        }), 500
 
 # get user profile endpoint
 @app.route('/api/user/profile', methods=['GET'])
@@ -341,7 +435,6 @@ def send_message(conversation_id):
                     [user_messages[0]], 
                     use_ai_generation=Config.USE_AI_TITLE_GENERATION
                 )
-                print(f"DEBUG: Generated conversation title: {title}")
             except Exception as e:
                 print(f"WARNING: Failed to generate conversation title: {e}")
                 # Fallback to first message content if title generation fails
@@ -379,23 +472,26 @@ def send_message(conversation_id):
         # We'll use a simple in-memory cache keyed by conversation_id
         # In production, you might want to use Redis or similar
         # Cache expires after 5 minutes (300 seconds) to prevent memory leaks
+        
+        import time
+        # Initialize cache if it doesn't exist (shouldn't happen after startup, but just in case)
         if not hasattr(app, '_message_cache'):
             app._message_cache = {}
             app._message_cache_timestamps = {}
         
-        import time
-        app._message_cache[conversation_id] = messages  # Keep messages with base64 for AI processing
-        app._message_cache_timestamps[conversation_id] = time.time()
-        
-        # Clean up old cache entries (older than 5 minutes)
+        # Clean up old cache entries first (older than 5 minutes)
         current_time = time.time()
         expired_keys = [
-            key for key, timestamp in app._message_cache_timestamps.items()
+            key for key, timestamp in list(app._message_cache_timestamps.items())
             if current_time - timestamp > 300
         ]
         for key in expired_keys:
             app._message_cache.pop(key, None)
             app._message_cache_timestamps.pop(key, None)
+        
+        # Store new messages with base64 for AI processing
+        app._message_cache[conversation_id] = messages
+        app._message_cache_timestamps[conversation_id] = current_time
         
         # Get updated conversation to retrieve the title (which may have been generated)
         updated_conversation = db.get_conversation(conversation_id)
@@ -432,19 +528,41 @@ def get_ai_response(conversation_id):
         # Try to get messages with base64 from cache (for AI processing)
         # If not in cache, use messages from database (which only have metadata)
         messages = None
-        if hasattr(app, '_message_cache') and conversation_id in app._message_cache:
-            messages = app._message_cache[conversation_id]
-            # Remove from cache after use (one-time use)
-            del app._message_cache[conversation_id]
-            if hasattr(app, '_message_cache_timestamps'):
-                app._message_cache_timestamps.pop(conversation_id, None)
-            print(f"DEBUG: Using cached messages with base64 data for AI processing")
-        else:
-            print(f"DEBUG: No cached messages found, using database messages (may not have image data)")
+        
+        # Check cache and clean up expired entries
+        import time
+        if hasattr(app, '_message_cache') and hasattr(app, '_message_cache_timestamps'):
+            current_time = time.time()
+            # Check if cache entry exists and is not expired
+            if conversation_id in app._message_cache:
+                cache_age = current_time - app._message_cache_timestamps.get(conversation_id, 0)
+                if cache_age < 300:  # Cache valid for 5 minutes
+                    messages = app._message_cache[conversation_id]
+                    # Remove from cache after use (one-time use)
+                    del app._message_cache[conversation_id]
+                    app._message_cache_timestamps.pop(conversation_id, None)
+                else:
+                    # Expired cache entry - remove it
+                    app._message_cache.pop(conversation_id, None)
+                    app._message_cache_timestamps.pop(conversation_id, None)
+            
+            # Clean up any other expired entries while we're at it
+            expired_keys = [
+                key for key, timestamp in list(app._message_cache_timestamps.items())
+                if current_time - timestamp > 300
+            ]
+            for key in expired_keys:
+                app._message_cache.pop(key, None)
+                app._message_cache_timestamps.pop(key, None)
         
         # Fallback to database messages if not in cache
         if not messages:
             messages = conversation.get('messages', [])
+            
+        # Ensure messages list is valid
+        if not isinstance(messages, list):
+            print(f"WARNING: Messages is not a list, resetting to empty list")
+            messages = []
         
         if not messages:
             print(f"ERROR: No messages in conversation {conversation_id}")
@@ -515,13 +633,10 @@ def get_ai_response(conversation_id):
                     msg.get('attachments') and any(att.get('data') for att in msg.get('attachments', []))
                     for msg in messages if msg.get('role') == 'user'
                 )
-                if has_images:
-                    print(f"DEBUG: Processing message with image attachment(s)")
-                    print(f"DEBUG: Model {ai_service.response_model} supports vision: {ai_service.response_model in ['gpt-4o', 'gpt-4-vision-preview', 'gpt-4o-mini']}")
+
                 
                 if not ai_service._supports_streaming(ai_service.response_model):
                     # o1 models don't support streaming - use non-streaming method and simulate streaming
-                    print(f"DEBUG: Using non-streaming method for model {ai_service.response_model} (doesn't support streaming)")
                     ai_response = ai_service.get_chat_response(messages, current_quality_score, user_name=first_name)
                     
                     if not ai_response:
@@ -569,12 +684,23 @@ def get_ai_response(conversation_id):
                 yield f"data: {json.dumps({'done': True, 'full_response': full_response})}\n\n"
                 
             except Exception as ai_error:
+                error_type = type(ai_error).__name__
                 error_msg = str(ai_error)
-                print(f"ERROR: Failed to generate AI response: {error_msg}")
+                print(f"ERROR: Failed to generate AI response ({error_type}): {error_msg}")
                 import traceback
                 traceback_str = traceback.format_exc()
                 print(f"ERROR: Traceback: {traceback_str}")
-                yield f"data: {json.dumps({'error': 'Failed to generate AI response', 'details': error_msg})}\n\n"
+                
+                # Provide more helpful error messages
+                user_friendly_error = "Failed to generate AI response"
+                if "rate limit" in error_msg.lower():
+                    user_friendly_error = "Rate limit exceeded. Please try again in a moment."
+                elif "connection" in error_msg.lower() or "network" in error_msg.lower():
+                    user_friendly_error = "Connection error. Please check your internet connection."
+                elif "invalid" in error_msg.lower() or "authentication" in error_msg.lower():
+                    user_friendly_error = "API authentication error. Please check your API key configuration."
+                
+                yield f"data: {json.dumps({'error': user_friendly_error, 'details': error_msg, 'type': error_type})}\n\n"
         
         return Response(
             stream_with_context(generate_stream()),
@@ -630,7 +756,6 @@ def update_conversation_title(conversation_id):
 if __name__ == '__main__':
     print("Starting Prompt.ly backend server...")
     print(f"Environment: {Config.ENVIRONMENT}")
-    print(f"Debug mode: {Config.DEBUG}")
     
     port = int(os.getenv('PORT', 5001))
     app.run(debug=Config.DEBUG, host='0.0.0.0', port=port)

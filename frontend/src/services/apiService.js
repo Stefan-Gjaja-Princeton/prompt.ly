@@ -106,7 +106,9 @@ export const createApiService = (getAccessTokenSilently) => {
       if (limitMessages !== null) {
         params.limit_messages = limitMessages;
       }
-      const response = await api.get(`/conversations/${conversationId}`, { params });
+      const response = await api.get(`/conversations/${conversationId}`, {
+        params,
+      });
       return response.data;
     },
 
@@ -115,12 +117,12 @@ export const createApiService = (getAccessTokenSilently) => {
       const payload = {
         message: message,
       };
-      
+
       // Add file attachment if provided
       if (fileAttachment) {
         payload.file_attachment = fileAttachment;
       }
-      
+
       const response = await api.post(
         `/conversations/${conversationId}/messages`,
         payload

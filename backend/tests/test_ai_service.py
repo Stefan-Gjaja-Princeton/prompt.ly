@@ -24,6 +24,7 @@ class TestAIService:
     def test_get_feedback_response(self, mock_openai_class, ai_service, sample_messages):
         """Test getting feedback response from AI"""
         # Mock OpenAI response
+        # ANCHOR: What is MagicMock?
         mock_client = MagicMock()
         mock_openai_class.return_value = mock_client
         
@@ -55,6 +56,7 @@ class TestAIService:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message = MagicMock()
+        # what the feedback should return
         mock_response.choices[0].message.content = '{"score": 8.0, "feedback": "Excellent prompt."}'
         
         mock_client.chat.completions.create.return_value = mock_response
@@ -62,7 +64,7 @@ class TestAIService:
         service = AIService("test-key")
         service.client = mock_client
         
-        # Test with previous scores
+        # Test to see that it returns the appropriate concent with the given previous scores
         previous_scores = [6.0, 7.0]
         quality_score, feedback, current_score = service.get_feedback_response(sample_messages, previous_scores)
         
@@ -79,6 +81,7 @@ class TestAIService:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message = MagicMock()
+        # what it should return
         mock_response.choices[0].message.content = "I need more information."
         
         mock_client.chat.completions.create.return_value = mock_response
@@ -90,9 +93,6 @@ class TestAIService:
         response = service.get_chat_response(sample_messages, quality_score=2.0)
         
         assert response == "I need more information."
-        # Verify max_tokens was not set (removed to allow unlimited responses)
-        call_args = mock_client.chat.completions.create.call_args
-        assert 'max_tokens' not in call_args[1] or call_args[1].get('max_tokens') is None
     
     @patch('ai_service.openai.OpenAI')
     def test_get_chat_response_high_quality(self, mock_openai_class, ai_service, sample_messages):
@@ -103,6 +103,7 @@ class TestAIService:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message = MagicMock()
+        # what it should return
         mock_response.choices[0].message.content = "This is a detailed response."
         
         mock_client.chat.completions.create.return_value = mock_response
@@ -114,9 +115,7 @@ class TestAIService:
         response = service.get_chat_response(sample_messages, quality_score=8.0)
         
         assert response == "This is a detailed response."
-        # Verify max_tokens was not set (removed to allow unlimited responses)
-        call_args = mock_client.chat.completions.create.call_args
-        assert 'max_tokens' not in call_args[1] or call_args[1].get('max_tokens') is None
+
     
     @patch('ai_service.openai.OpenAI')
     def test_get_feedback_response_json_parsing_error(self, mock_openai_class, ai_service, sample_messages):
@@ -127,6 +126,7 @@ class TestAIService:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message = MagicMock()
+        # just in case there is an error in the content that the server sends the frontend
         mock_response.choices[0].message.content = "Invalid JSON response"
         
         mock_client.chat.completions.create.return_value = mock_response

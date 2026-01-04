@@ -1,3 +1,4 @@
+// IMPORTANT NOTE: This file was created by Cursor in order to get the text generated as output by prompt.ly to format appropriately using markdown.
 import { marked } from "marked";
 
 // Configure marked.js to add CSS classes that match existing styles
