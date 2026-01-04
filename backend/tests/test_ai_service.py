@@ -18,7 +18,7 @@ class TestAIService:
     def test_init(self, ai_service):
         """Test AIService initialization"""
         assert ai_service is not None
-        assert ai_service.model == "gpt-4o"
+        assert ai_service.response_model == "gpt-4o"
     
     @patch('ai_service.openai.OpenAI')
     def test_get_feedback_response(self, mock_openai_class, ai_service, sample_messages):
@@ -31,7 +31,7 @@ class TestAIService:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message = MagicMock()
-        mock_response.choices[0].message.content = '{"score": 7.5, "feedback": "Good prompt with specific details."}'
+        mock_response.choices[0].message.content = '{"score": 7.5, "quality_label": "Good", "improvement_tips": ["Be more specific", "Add context", "Ask focused questions"], "example_improved_prompt": "Can you explain how neural networks work with specific examples?"}'
         
         mock_client.chat.completions.create.return_value = mock_response
         
@@ -44,7 +44,9 @@ class TestAIService:
         
         assert quality_score == 7.5
         assert current_score == 7.5
-        assert "Good prompt" in feedback
+        assert isinstance(feedback, dict)
+        assert feedback.get("quality_label") == "Good"
+        assert "improvement_tips" in feedback
         assert mock_client.chat.completions.create.called
     
     @patch('ai_service.openai.OpenAI')
@@ -57,7 +59,7 @@ class TestAIService:
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message = MagicMock()
         # what the feedback should return
-        mock_response.choices[0].message.content = '{"score": 8.0, "feedback": "Excellent prompt."}'
+        mock_response.choices[0].message.content = '{"score": 8.0, "quality_label": "Excellent", "improvement_tips": ["Great job!", "Keep it up", "Well done"], "example_improved_prompt": "Excellent prompt example"}'
         
         mock_client.chat.completions.create.return_value = mock_response
         
@@ -70,7 +72,8 @@ class TestAIService:
         
         assert current_score == 8.0
         assert quality_score == 8.0  # Should use current score
-        assert "Excellent" in feedback
+        assert isinstance(feedback, dict)
+        assert feedback.get("quality_label") == "Excellent"
     
     @patch('ai_service.openai.OpenAI')
     def test_get_chat_response_low_quality(self, mock_openai_class, ai_service, sample_messages):

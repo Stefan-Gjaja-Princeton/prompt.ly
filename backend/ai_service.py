@@ -430,7 +430,7 @@ SCORING CRITERIA (be EXTREMELY TOUGH and consider conversation history):
 
 2. CRITICAL THINKING (1-10): Does the prompt show analysis or reasoning?
    - Simple requests that are not well thought through = 2/10
-   - Questions that are easy to answer that have DIRECT answers and could easily be googled = 8/10
+   - Questions that are easy to answer that have DIRECT answers and could easily be googled = 10/10
    - Multi-step questions that the user wants AI to do for them = 2/10
    - Analytical questions = 10/10
 
@@ -454,6 +454,7 @@ FINAL SCORE CALCULATION:
 EXAMPLES OF LOW SCORES (be VERY strict):
 - "summarize this" (no context, no specificity) = 1-2/10
 - "help me" (too vague) = 1/10
+- "can you write this essay for me?" (no self-direction nor specificity) = 1/10
 - "what do you think?" (no specific question) = 1-2/10
 - "continue" (no context) = 1/10
 - "I don't know" (shows no effort) = 1/10
@@ -462,11 +463,12 @@ EXAMPLES OF LOW SCORES (be VERY strict):
 - "no" (no context or question) = 1/10
 - "maybe" (no context or question) = 1/10
 - "idk" (lazy, no effort) = 1/10
-- "whatever" (disrespectful, no effort) = 1/10
+- "whatever" (no effort) = 1/10
 
 EXAMPLES OF HIGH SCORES:
 - "Based on our discussion about machine learning, can you explain how neural networks differ from decision trees in terms of interpretability?" = 8-9/10
 - "I'm working on a Python project for data analysis. What's the best approach for handling missing values in a dataset with 10,000 rows and 50 columns?" = 7-8/10
+- "Here is an outline I've been working on, complete with a thesis statement and body paragraph ideas. Can you give me feedback on it and give me some ideas for evidence I can use in the body paragraphs?" = 8/10
 
 Provide:
 1. A numerical score (1-10) - be strict!
