@@ -15,6 +15,7 @@ const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
     return "#dc3545";
   };
 
+  // This is to get the percentage of the score so we can display the bar properly
   const getScorePercentage = (score) => {
     if (score === null) return 0;
     return (score / 10) * 100;
@@ -44,7 +45,6 @@ const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
     // If feedback is an object (new format), use it directly
     return {
       quality_label: feedback.quality_label || null,
-      word_count: feedback.word_count || 0,
       improvement_tips: Array.isArray(feedback.improvement_tips)
         ? feedback.improvement_tips
         : [],
@@ -61,6 +61,7 @@ const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
     <div className="feedback-panel">
       <div className="feedback-header">
         <h2>Prompt Quality Feedback</h2>
+        {/* Tutorial modal */}
         <button
           type="button"
           className="feedback-info-button"
@@ -179,6 +180,7 @@ const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
         </div>
       </div>
 
+      {/* Information about prompt scoring */}
       {isInfoOpen && (
         <div className="feedback-info-backdrop" onClick={closeInfo}>
           <div

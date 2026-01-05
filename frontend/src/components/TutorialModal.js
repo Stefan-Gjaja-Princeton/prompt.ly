@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { X, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
 import "./TutorialModal.css";
 
+// just a series of slides explaining different features of prompt.ly
 const TUTORIAL_SLIDES = [
   {
     title: "Welcome to prompt.ly!",
@@ -100,6 +101,7 @@ const TUTORIAL_SLIDES = [
             Take a second to think about your prompt before you send it - this
             will help you get a better score.
           </li>
+          <li>Start a new conversation when you want to switch topics.</li>
         </ol>
       </div>
     ),

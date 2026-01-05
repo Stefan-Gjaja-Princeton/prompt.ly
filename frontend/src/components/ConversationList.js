@@ -24,7 +24,7 @@ const ConversationList = ({
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
     // formatting to make the days references look normal
-    if (diffDays < 0) return "Today"; // Handle negative days (timezone issues)
+    if (diffDays < 0) return "Today"; // this handles negative days (timezone issues) which was an issue i was having in indonesia
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Yesterday";
     if (diffDays <= 7) return `${diffDays} days ago`;
@@ -53,7 +53,7 @@ const ConversationList = ({
           )}
         </div>
       </div>
-
+      {/* List of conversations, either loading, empty, or displaying a list of conversations */}
       <div className="conversation-items">
         {loading ? (
           <div className="empty-state">

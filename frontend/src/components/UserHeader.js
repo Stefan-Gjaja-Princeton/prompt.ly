@@ -7,6 +7,7 @@ import { LogOut, User, HelpCircle } from "lucide-react";
 import "./UserHeader.css";
 import TutorialModal from "./TutorialModal";
 
+// this is the ribbon at the top with user information and log out and tutorial button
 const UserHeader = () => {
   const { user, logout } = useAuth0();
   const [imageError, setImageError] = useState(false);
@@ -56,12 +57,19 @@ const UserHeader = () => {
             <HelpCircle size={18} />
             <span>How to use prompt.ly</span>
           </button>
-          <button className="logout-button" onClick={handleLogout} title="Logout">
+          <button
+            className="logout-button"
+            onClick={handleLogout}
+            title="Logout"
+          >
             <LogOut size={18} />
           </button>
         </div>
       </div>
-      <TutorialModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
+      <TutorialModal
+        isOpen={showTutorial}
+        onClose={() => setShowTutorial(false)}
+      />
     </>
   );
 };

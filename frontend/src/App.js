@@ -47,7 +47,7 @@ function App() {
   const abortControllerRef = useRef(null); // Track active streaming request for abort capability
   const feedbackAbortControllerRef = useRef(null); // Track active feedback request for abort capability
 
-  // Handle window resize to detect narrow windows
+  // Handle window resize to detect narrow windows (display the mobile warning if so)
   useEffect(() => {
     const handleResize = () => {
       setIsNarrowWindow(window.innerWidth < 800);
@@ -60,10 +60,11 @@ function App() {
   // gets all the convos
   const loadConversations = useCallback(async () => {
     if (!isAuthenticated) return;
+    // displays the loading state
     setConversationsLoading(true);
     try {
       const data = await apiService.getConversations();
-      setConversations(data || []); // Ensure we always have an array
+      setConversations(data || []);
     } catch (error) {
       console.error("Error loading conversations:", error);
       // Don't clear conversations on error - keep existing ones
@@ -75,7 +76,7 @@ function App() {
 
   loadConversationsRef.current = loadConversations;
 
-  // gets the specific convos when conversation ID changes
+  // gets the specific convos when user clicks on a conversation
   const loadConversation = useCallback(
     async (conversationId) => {
       if (!conversationId) return;
@@ -87,8 +88,7 @@ function App() {
         setIsTerse(data.quality_score !== null && data.quality_score <= 5.0);
         // Scroll is handled by useEffect in ChatWindow when messages change
       } catch (error) {
-        // If conversation doesn't exist (404), it's expected for new conversations that haven't sent a message yet
-        // Silently ignore this error - the conversation will be created when the first message is sent
+        // If conversation doesn't exist (404), it's expected for new conversations that haven't sent a message yet so just silently ignore it
         if (error.response?.status === 404) {
           // Clear messages for new conversations - this is expected behavior
           setMessages([]);
@@ -125,8 +125,7 @@ function App() {
       loadConversationRef.current &&
       !isSendingMessageRef.current
     ) {
-      // Only load if the conversation exists in the conversations list (it's been saved to database)
-      // New conversations created locally won't be in the list until the first message is sent
+      // new conversations created locally won't be in the list until the first message is sent
       const conversationExists = conversations.some(
         (conv) => conv.conversation_id === currentConversationId
       );
@@ -218,7 +217,7 @@ function App() {
       }
     }
 
-    // Add user message immediately to the chat FIRST (before any async operations)
+    // Add user message immediately to the chat first before any async operations
     const userMessage = {
       role: "user",
       content: message || "",
@@ -235,7 +234,7 @@ function App() {
     // Ensure we have a conversation ID
     let activeConversationId = currentConversationId;
     if (!activeConversationId) {
-      // Generate a new conversation ID if we somehow don't have one
+      // Generate a new conversation ID if we somehow don't have one - mostly a fallback this should probably not happen
       activeConversationId = crypto.randomUUID();
       setCurrentConversationId(activeConversationId);
     }
@@ -243,7 +242,7 @@ function App() {
     setLoading(true);
     setFeedbackLoading(true);
 
-    // Create AbortController for feedback request
+    // Create AbortController for feedback request in case we delete the conversation mid way thru
     feedbackAbortControllerRef.current = new AbortController();
 
     try {
@@ -267,31 +266,6 @@ function App() {
       // Store title for later use when updating conversation list
       const updated_title = feedbackResponse.title;
 
-      // Update conversation title in the list if it was generated and move to top
-      if (updated_title) {
-        setConversations((prev) => {
-          const exists = prev.some(
-            (conv) => conv.conversation_id === activeConversationId
-          );
-          if (exists) {
-            // Find and update the conversation, then move it to the top
-            const conv = prev.find(
-              (c) => c.conversation_id === activeConversationId
-            );
-            const updatedConv = {
-              ...conv,
-              title: updated_title,
-              updated_at: new Date().toISOString(),
-            };
-            const otherConvs = prev.filter(
-              (c) => c.conversation_id !== activeConversationId
-            );
-            return [updatedConv, ...otherConvs];
-          }
-          return prev;
-        });
-      }
-
       // Stop feedback loading immediately
       setFeedbackLoading(false);
 
@@ -299,11 +273,11 @@ function App() {
       feedbackAbortControllerRef.current = null;
 
       // Step 2: Get AI response after feedback is ready (streaming)
-      // Don't add message until first chunk arrives
+      // don't add message until first chunk comes
       const streamingMessageId = Date.now();
       let streamingMessageAdded = false;
 
-      // Create AbortController for this stream
+      // create AbortController for this stream in case user deletes the conversation mid way thru
       abortControllerRef.current = new AbortController();
 
       // Stream AI response
@@ -338,7 +312,7 @@ function App() {
             });
           }
         },
-        // onComplete callback
+        // onComplete callback once the stream is complete
         (completeResponse) => {
           // Clear abort controller on completion
           abortControllerRef.current = null;
@@ -454,6 +428,7 @@ function App() {
         abortControllerRef.current?.signal
       );
     } catch (error) {
+      // the rest is error handling, lot of different types of errors
       // Clear feedback abort controller on error
       feedbackAbortControllerRef.current = null;
 
@@ -543,7 +518,7 @@ function App() {
     setConversationToDelete(conversationId);
     setShowDeleteConfirm(true);
   };
-
+  // popup, user clicks delete
   const handleDeleteConfirm = async () => {
     if (!conversationToDelete) return;
 
@@ -600,7 +575,7 @@ function App() {
         setIsTerse(false);
       }
 
-      // Reload conversations list
+      // Reload conversations list after we delete to reflect the deletion
       await loadConversations();
     } catch (error) {
       console.error("Error deleting conversation:", error);
@@ -631,6 +606,7 @@ function App() {
     }
   };
 
+  // user goes back on what they wanted to do
   const handleDeleteCancel = () => {
     setShowDeleteConfirm(false);
     setConversationToDelete(null);

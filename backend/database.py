@@ -576,6 +576,7 @@ class Database:
             if conn:
                 self._close_connection(conn)
     
+    # newest functionality, allows you to delete a conversation
     def delete_conversation(self, conversation_id: str, user_email: str) -> bool:
         """Delete a conversation, verifying it belongs to the user"""
         conn = None

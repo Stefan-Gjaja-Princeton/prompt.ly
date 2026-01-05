@@ -398,6 +398,7 @@ const ChatWindow = ({
           </div>
         </div>
       )}
+      {/* main container for the messages, displays a system message when there is no conversation yet */}
       <div className="messages-container" ref={messagesContainerRef}>
         {messages.length === 0 ? (
           <div className="empty-chat">
@@ -475,6 +476,7 @@ const ChatWindow = ({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Hard stop at 20 messages */}
       {isLimitReached ? (
         <div className="conversation-limit-message">
           <p>

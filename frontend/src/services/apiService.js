@@ -10,6 +10,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 // Create API service factory that accepts token getter
+// sets a base url and adds a header to all the requests
 export const createApiService = (getAccessTokenSilently) => {
   const api = axios.create({
     baseURL: API_BASE_URL,
@@ -19,7 +20,7 @@ export const createApiService = (getAccessTokenSilently) => {
     timeout: 60000, // 60 second timeout for API calls
   });
 
-  // Add interceptor to include auth token
+  //  intercepts all requests to include auth token
   api.interceptors.request.use(
     async (config) => {
       try {
@@ -65,7 +66,7 @@ export const createApiService = (getAccessTokenSilently) => {
   );
 
   return {
-    // Get all conversations (with optional pagination)
+    // Get all conversations (with optional pagination that i didnt end up implementing)
     getConversations: async (limit = null, offset = 0) => {
       const params = {};
       if (limit !== null) {
@@ -74,29 +75,6 @@ export const createApiService = (getAccessTokenSilently) => {
       }
       const response = await api.get("/conversations", { params });
       return response.data;
-    },
-
-    // Create a new conversation
-    createConversation: async () => {
-      try {
-        const response = await api.post("/conversations");
-        return response.data;
-      } catch (error) {
-        // Log detailed error info for debugging
-        console.error("createConversation error:", {
-          message: error.message,
-          code: error.code,
-          response: error.response?.data,
-          status: error.response?.status,
-          request: error.request,
-          config: {
-            url: error.config?.url,
-            baseURL: error.config?.baseURL,
-            method: error.config?.method,
-          },
-        });
-        throw error;
-      }
     },
 
     // Get a specific conversation (with optional message limit for faster loading)
@@ -118,7 +96,7 @@ export const createApiService = (getAccessTokenSilently) => {
       return response.data;
     },
 
-    // Send a message to a conversation (with optional file attachments - up to 3)
+    // Send a message to a conversation (with optional file attachments, up to 3)
     sendMessage: async (
       conversationId,
       message,
@@ -141,7 +119,7 @@ export const createApiService = (getAccessTokenSilently) => {
       const response = await api.post(
         `/conversations/${conversationId}/messages`,
         payload,
-        { signal: signal } // Add AbortController signal
+        { signal: signal } // Add AbortController signal in case the user deletes the conversation
       );
       return response.data;
     },
@@ -181,6 +159,7 @@ export const createApiService = (getAccessTokenSilently) => {
         const decoder = new TextDecoder();
         let buffer = "";
 
+        // reads the chunks of the response - the streaming that I wanted to implement
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
