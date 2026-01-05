@@ -112,15 +112,19 @@ export const createApiService = (getAccessTokenSilently) => {
       return response.data;
     },
 
-    // Send a message to a conversation (with optional file attachment)
-    sendMessage: async (conversationId, message, fileAttachment = null) => {
+    // Send a message to a conversation (with optional file attachments - up to 3)
+    sendMessage: async (conversationId, message, fileAttachments = null) => {
       const payload = {
         message: message,
       };
 
-      // Add file attachment if provided
-      if (fileAttachment) {
-        payload.file_attachment = fileAttachment;
+      // Add file attachments if provided (array of up to 3 files)
+      if (
+        fileAttachments &&
+        Array.isArray(fileAttachments) &&
+        fileAttachments.length > 0
+      ) {
+        payload.file_attachments = fileAttachments;
       }
 
       const response = await api.post(

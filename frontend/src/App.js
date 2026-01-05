@@ -132,50 +132,70 @@ function App() {
     return conversationId;
   };
 
-  const sendMessage = async (message, file = null) => {
+  const sendMessage = async (message, files = null) => {
     // Mark that we're sending a message to prevent loadConversation from clearing messages
     isSendingMessageRef.current = true;
 
-    // Convert file to base64 if provided
-    // file is a fileObj with {file, preview, type} from ChatWindow
-    let fileAttachment = null;
-    if (file && file.file) {
-      const actualFile = file.file;
+    // Convert files to base64 if provided
+    // files is an array of fileObj with {file, preview, type} from ChatWindow
+    let fileAttachments = null;
+    if (files && Array.isArray(files) && files.length > 0) {
       try {
-        // If it's an image and we already have a preview with base64, use that
-        let fileBase64;
-        if (file.type === "image" && file.preview) {
-          // Extract base64 from preview data URL
-          fileBase64 = file.preview.split(",")[1];
-        } else {
-          // For PDFs or if preview not available, read the file
-          fileBase64 = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              // Remove data:...;base64, prefix
-              const base64 = e.target.result.split(",")[1];
-              resolve(base64);
-            };
-            reader.onerror = (error) => {
-              console.error("ERROR: Error converting file to base64:", error);
-              reject(error);
-            };
-            reader.readAsDataURL(actualFile);
-          });
-        }
+        fileAttachments = await Promise.all(
+          files.map(async (fileObj) => {
+            if (!fileObj || !fileObj.file) {
+              return null;
+            }
 
-        fileAttachment = {
-          filename: actualFile.name,
-          file_type:
-            actualFile.type ||
-            (actualFile.name.toLowerCase().endsWith(".pdf")
-              ? "application/pdf"
-              : "image/jpeg"),
-          data: fileBase64,
-        };
+            const actualFile = fileObj.file;
+            let fileBase64;
+
+            // If it's an image and we already have a preview with base64, use that
+            if (fileObj.type === "image" && fileObj.preview) {
+              // Extract base64 from preview data URL
+              fileBase64 = fileObj.preview.split(",")[1];
+            } else {
+              // For PDFs or if preview not available, read the file
+              fileBase64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                  // Remove data:...;base64, prefix
+                  const base64 = e.target.result.split(",")[1];
+                  resolve(base64);
+                };
+                reader.onerror = (error) => {
+                  console.error(
+                    "ERROR: Error converting file to base64:",
+                    error
+                  );
+                  reject(error);
+                };
+                reader.readAsDataURL(actualFile);
+              });
+            }
+
+            return {
+              filename: actualFile.name,
+              file_type:
+                actualFile.type ||
+                (actualFile.name.toLowerCase().endsWith(".pdf")
+                  ? "application/pdf"
+                  : "image/jpeg"),
+              data: fileBase64,
+            };
+          })
+        );
+
+        // Filter out any null entries
+        fileAttachments = fileAttachments.filter((att) => att !== null);
+
+        // If all files failed, set to null
+        if (fileAttachments.length === 0) {
+          fileAttachments = null;
+        }
       } catch (error) {
-        console.error("ERROR: Error converting file to base64:", error);
-        alert("Failed to process file. Please try again.");
+        console.error("ERROR: Error converting files to base64:", error);
+        alert("Failed to process files. Please try again.");
         isSendingMessageRef.current = false;
         return;
       }
@@ -186,13 +206,11 @@ function App() {
       role: "user",
       content: message || "",
       timestamp: new Date().toISOString(),
-      ...(fileAttachment && {
-        attachments: [
-          {
-            filename: fileAttachment.filename,
-            file_type: fileAttachment.file_type,
-          },
-        ],
+      ...(fileAttachments && {
+        attachments: fileAttachments.map((att) => ({
+          filename: att.filename,
+          file_type: att.file_type,
+        })),
       }),
     };
     setMessages((prev) => [...prev, userMessage]);
@@ -213,7 +231,7 @@ function App() {
       const feedbackResponse = await apiService.sendMessage(
         activeConversationId,
         message,
-        fileAttachment
+        fileAttachments
       );
 
       // Update feedback and score immediately

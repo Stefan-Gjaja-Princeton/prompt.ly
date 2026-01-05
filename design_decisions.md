@@ -44,3 +44,7 @@ To be honest, didn't make a ton of complex choices in terms of the backend infra
 
 - Scaling: A big hurdle with the ability to scale with this product is that the current API links my OpenAI wallet to the frontend with each user prompt which wouldn't be good if I scaled this much wider! But this model works as I'm experimenting with the tool.
 - Speed/performance: Getting back to my database choice, my decision to duplicate data where the users table has a list of conversation ids hurts the speed of adding conversations to a user's database, but improves the speed of looking up a user's conversations. Since the user will care a lot about speed when trying to find conversations, I think this will help optimize for what the user wants most.
+
+**Image/file submission**
+
+- I wanted users to be able to submit images and files for processing in their prompts. However, storing the files in the backend would take up a lot of space (space that I didn't really have right now since I'm on a low plan with Render). So, instead, I made it so they get put in a small cache that clears after 5 minutes so that prompt.ly can process the file and respond to it, but it doesn't take up space in the database. Obviously this comes with the tradeoff that they can't refer back to it some time later but I think it's worth it.

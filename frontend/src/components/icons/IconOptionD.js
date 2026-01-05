@@ -1,3 +1,4 @@
+// IMPORTANT NOTE: This icon option was made by Cursor when I asked for specific mascots for my product.
 import React from "react";
 
 /**

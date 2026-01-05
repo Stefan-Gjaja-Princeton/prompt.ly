@@ -31,7 +31,7 @@ const ChatWindow = ({
   const fileInputWrapperRef = useRef(null);
   const previousMessageCountRef = useRef(0);
 
-  // Handle copy button clicks for code blocks
+  // Handle copy button clicks for code blocks so people can paste into a code editor
   useEffect(() => {
     const handleCopyClick = async (e) => {
       if (e.target.closest(".copy-code-button")) {
@@ -47,7 +47,7 @@ const ChatWindow = ({
 
             await navigator.clipboard.writeText(decodedCode);
 
-            // Visual feedback - change button text temporarily
+            // Visual feedback - change button text temporarily to make it clear to the user that they've copied
             const originalHTML = button.innerHTML;
             button.innerHTML =
               '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" fill="currentColor"/></svg>';
@@ -77,6 +77,7 @@ const ChatWindow = ({
           container.nodeType === Node.TEXT_NODE ||
           container.closest(".message-text")
         ) {
+          // make this plain so people don't have weird formatting when they paste
           const plainText = selection.toString();
           if (plainText) {
             e.clipboardData.setData("text/plain", plainText);
@@ -117,11 +118,15 @@ const ChatWindow = ({
     }
   }, [messages]);
 
+  // this runs when they submit their prompt
   const handleSubmit = (e) => {
     e.preventDefault();
     if ((inputMessage.trim() || selectedFiles.length > 0) && !loading) {
-      // For now, send the first file (we can expand to multiple files later)
-      onSendMessage(inputMessage.trim(), selectedFiles[0] || null);
+      // Send all selected files (up to 3)
+      onSendMessage(
+        inputMessage.trim(),
+        selectedFiles.length > 0 ? selectedFiles : null
+      );
       setInputMessage("");
       setSelectedFiles([]);
 

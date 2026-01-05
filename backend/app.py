@@ -251,24 +251,38 @@ def send_message(conversation_id):
     try:
         data = request.get_json()
         user_message = data.get('message', '') if data else ''
+        # Support both old format (file_attachment) and new format (file_attachments array)
         file_attachment = data.get('file_attachment', None) if data else None
+        file_attachments = data.get('file_attachments', None) if data else None
         
-        # Allow message to be empty if file is attached
-        if not user_message and not file_attachment:
+        # Normalize to array format for consistent processing
+        if file_attachment and not file_attachments:
+            # Old format: single file, convert to array
+            file_attachments = [file_attachment]
+        elif not file_attachments:
+            file_attachments = []
+        
+        # Allow message to be empty if files are attached
+        if not user_message and len(file_attachments) == 0:
             return jsonify({"error": "Message or file attachment is required"}), 400
         
-        # Validate file type if attachment is provided
-        if file_attachment:
-            file_type = file_attachment.get("file_type", "")
-            filename = file_attachment.get("filename", "")
-            # Check if it's a valid type (image or PDF)
-            is_image = file_type.startswith("image/") or any(
-                filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg']
-            )
-            is_pdf = file_type == "application/pdf" or filename.lower().endswith('.pdf')
+        # Validate file types if attachments are provided
+        if len(file_attachments) > 0:
+            # Limit to 3 attachments
+            if len(file_attachments) > 3:
+                return jsonify({"error": "Maximum of 3 file attachments allowed"}), 400
             
-            if not (is_image or is_pdf):
-                return jsonify({"error": "Only image files (PNG, JPG) and PDFs are supported"}), 400
+            for file_attachment in file_attachments:
+                file_type = file_attachment.get("file_type", "")
+                filename = file_attachment.get("filename", "")
+                # Check if it's a valid type (image or PDF)
+                is_image = file_type.startswith("image/") or any(
+                    filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg']
+                )
+                is_pdf = file_type == "application/pdf" or filename.lower().endswith('.pdf')
+                
+                if not (is_image or is_pdf):
+                    return jsonify({"error": "Only image files (PNG, JPG) and PDFs are supported"}), 400
         
         user_email = request.current_user['email']
         
@@ -310,21 +324,24 @@ def send_message(conversation_id):
         current_quality_score = conversation['quality_score'] or 5.0  # Default to 5.0 for AI response if no score yet
         previous_scores = conversation.get('message_scores', [])
         
-        # Add user message with optional file attachment
+        # Add user message with optional file attachments
         user_msg = {
             "role": "user",
             "content": user_message or "",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
-        # Add file attachment metadata if provided
-        if file_attachment:
-            user_msg["attachments"] = [{
-                "filename": file_attachment.get("filename", "image"),
-                "file_type": file_attachment.get("file_type", "image/jpeg"),
-                # Store base64 data temporarily for AI processing
-                "data": file_attachment.get("data")
-            }]
+        # Add file attachments metadata if provided (up to 3)
+        if len(file_attachments) > 0:
+            user_msg["attachments"] = [
+                {
+                    "filename": att.get("filename", "image"),
+                    "file_type": att.get("file_type", "image/jpeg"),
+                    # Store base64 data temporarily for AI processing
+                    "data": att.get("data")
+                }
+                for att in file_attachments
+            ]
         
         messages.append(user_msg)
         

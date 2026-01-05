@@ -141,25 +141,27 @@ class AIService:
         # this is a personalization so the bot seems like it's having a conversation with the user
         name_context = f" Address the user as {user_name} once every 5 messages. Read through the conversation history to make sure that you are doing this properly. Don't name the user every single time you respond." if user_name else ""
         
+        file_context = "IMPORTANT: You CAN access and process files that users attach. You can SEE images that users attach (they are provided in the message). You can READ PDF files that users attach (the text content is extracted and included).When users mention attachments, you have access to them and should analyze them"
+
         if quality_score <= 3:
             # really terse, very minimal responses with strong prodding
-            system_prompt = f"""You are a helpful AI assistant, but the user's prompt quality is very poor.{name_context}
+            system_prompt = f"""You are a helpful AI assistant, but the user's prompt quality is very poor.{name_context} {file_context}
             Respond in 20-30 words maximum. Be direct and ask for more specific information. 
             Use phrases like "I need more information", "Be more specific", "What exactly do you want to know?"
             Don't provide answers, only ask clarifying questions."""
         elif quality_score <= 5:
             # moderately terse, brief responses with follow-up questions
-            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is below average.{name_context}
+            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is below average.{name_context} {file_context}
             Provide brief responses (50-100 words) and ask follow-up questions to encourage better prompting.
             Ask for more context, specificity, or clarification. Guide them to ask better questions."""
         elif quality_score <= 7: 
             # verbose, but follow-up questions/directions
-            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is relatively strong, but not perfect.{name_context}
+            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is relatively strong, but not perfect.{name_context} {file_context}
             Provide helpful responses (100+ words) and ask follow-up questions to encourage better prompting.
             Ask for more context, specificity, or clarification if needed. Guide them to ask better questions and to understand the material even more deeply."""
         else:
             # normal helpful responses
-            system_prompt = f"""You are a helpful AI assistant.{name_context} The user's prompt quality is extremely strong, so provide clear, accurate, and useful responses to user questions.
+            system_prompt = f"""You are a helpful AI assistant.{name_context} {file_context} The user's prompt quality is extremely strong, so provide clear, accurate, and useful responses to user questions.
             Be thorough and helpful while encouraging good prompting practices. Be as helpful as possible."""
         
         try:
@@ -252,25 +254,26 @@ class AIService:
         # this is a personalization again
         name_context = f" Address the user as {user_name} once every 5 messages. Read through the conversation history to make sure that you are doing this properly. Don't name the user every single time you respond." if user_name else ""
         
+        file_context = "IMPORTANT: You CAN access and process files that users attach. You can SEE images that users attach (they are provided in the message). You can READ PDF files that users attach (the text content is extracted and included).When users mention attachments, you have access to them and should analyze them"
         if quality_score <= 3:
             # really terse, very minimal responses with strong prodding
-            system_prompt = f"""You are a helpful AI assistant, but the user's prompt quality is very poor.{name_context}
+            system_prompt = f"""You are a helpful AI assistant, but the user's prompt quality is very poor.{name_context} {file_context}
             Respond in 20-30 words maximum. Be direct and ask for more specific information. 
             Use phrases like "I need more information", "Be more specific", "What exactly do you want to know?"
             Don't provide answers, only ask clarifying questions."""
         elif quality_score <= 5:
             # moderately terse, brief responses with follow-up questions
-            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is below average.{name_context}
+            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is below average.{name_context} {file_context}
             Provide brief responses (50-100 words) and ask follow-up questions to encourage better prompting.
             Ask for more context, specificity, or clarification. Guide them to ask better questions."""
         elif quality_score <= 7: 
             # verbose, but follow-up questions/directions
-            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is relatively strong, but not perfect.{name_context}
+            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is relatively strong, but not perfect.{name_context} {file_context}
             Provide helpful responses (100+ words) and ask follow-up questions to encourage better prompting.
             Ask for more context, specificity, or clarification if needed. Guide them to ask better questions and to understand the material even more deeply."""
         else:
             # normal helpful responses
-            system_prompt = f"""You are a helpful AI assistant.{name_context} The user's prompt quality is extremely strong, so provide clear, accurate, and useful responses to user questions.
+            system_prompt = f"""You are a helpful AI assistant.{name_context} {file_context} The user's prompt quality is extremely strong, so provide clear, accurate, and useful responses to user questions.
             Be thorough and helpful while encouraging good prompting practices. Be as helpful as possible."""
         
         try:
@@ -355,38 +358,39 @@ class AIService:
     
     # because feedback happens before response, we need to extract the stuff here too
     def _format_messages_for_feedback(self, messages: List[Dict]) -> List[Dict]:
-        """Format messages for feedback model, extracting PDF text and noting images"""
+        """Format messages for feedback model, noting file attachments without extracting content (for speed)"""
         formatted_messages = []
         for msg in messages:
             msg_copy = msg.copy()
             content = msg_copy.get('content', '')
             attachments = msg_copy.get('attachments', [])
             
-            # Process attachments
-            pdf_texts = []
+            # Process attachments - just count them, don't extract content (for speed)
+            pdf_count = 0
             image_count = 0
             for att in attachments:
                 file_type = att.get('file_type', '')
-                filename = att.get('filename', '')
                 
-                # Extract PDF text
-                if (file_type == 'application/pdf' or filename.lower().endswith('.pdf')) and att.get('data'):
-                    pdf_text = self._extract_pdf_text(att.get('data'))
-                    pdf_texts.append(f"[Content from {filename}]\n{pdf_text}")
+                # Count PDFs (skip extraction for speed - feedback doesn't need content)
+                if (file_type == 'application/pdf' or att.get('filename', '').lower().endswith('.pdf')):
+                    pdf_count += 1
                 
                 # Count images (for now, just note them)
                 elif file_type.startswith('image/'):
                     image_count += 1
             
-            # Combine content with PDF text
-            combined_content = content
-            if pdf_texts:
-                combined_content = (content + "\n\n" + "\n\n".join(pdf_texts)).strip() if content else "\n\n".join(pdf_texts)
-            
-            # Note images if present. It doesn't actually input the image itself because that would take more time and delay the feedback.
+            # Note file attachments if present (without extracting content for speed)
+            attachment_notes = []
+            if pdf_count > 0:
+                attachment_notes.append(f"[User attached {pdf_count} PDF file(s)]")
             if image_count > 0:
-                image_note = f"\n\n[User attached {image_count} image file(s)]"
-                combined_content = combined_content + image_note if combined_content else f"[User attached {image_count} image file(s)]"
+                attachment_notes.append(f"[User attached {image_count} image file(s)]")
+            
+            # Combine content with attachment notes
+            combined_content = content
+            if attachment_notes:
+                notes_text = "\n\n".join(attachment_notes)
+                combined_content = (content + "\n\n" + notes_text).strip() if content else notes_text
             
             # Remove attachments and update content
             if 'attachments' in msg_copy:

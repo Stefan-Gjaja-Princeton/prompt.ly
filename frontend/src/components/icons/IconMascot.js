@@ -1,15 +1,5 @@
 // IMPORTANT NOTE: This and the icon options were made by Cursor when I asked for specific
 // logos for my product based on specific criteria, and it came up with three different ones.
-/**
- * Mascot Icon Selector
- *
- * To switch between icon options, uncomment the import and assignment for the icon you want:
- * - Option D: Friendly mascot (p as head with body)
- * - Option E: Chat-bubble character (chat bubble with p face inside)
- * - Option F: Monoline badge (circular badge with p face)
- *
- * Make sure only ONE icon is imported and assigned to PromptlyMascot at a time.
- */
 
 // Option D: Friendly mascot — the "p" is the head
 import IconOptionD from "./IconOptionD";
@@ -20,7 +10,7 @@ import IconOptionD from "./IconOptionD";
 // Option F: Monoline badge — bowl of the p doubles as a face
 // import IconOptionF from "./IconOptionF";
 
-// The active icon (change which one is assigned here):
+// The active icon
 const PromptlyMascot = IconOptionD;
 // const PromptlyMascot = IconOptionE;
 // const PromptlyMascot = IconOptionF;
