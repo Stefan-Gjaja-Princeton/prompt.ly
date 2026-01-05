@@ -13,6 +13,7 @@ import ChatWindow from "./components/ChatWindow";
 import FeedbackPanel from "./components/FeedbackPanel";
 import UserHeader from "./components/UserHeader";
 import LoginPage from "./components/LoginPage";
+import MobileWarning from "./components/MobileWarning";
 import { createApiService } from "./services/apiService";
 
 function App() {
@@ -34,11 +35,22 @@ function App() {
   const [isTerse, setIsTerse] = useState(false);
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [isNarrowWindow, setIsNarrowWindow] = useState(window.innerWidth < 800);
 
   // Use refs to store latest callbacks without triggering re-renders
   const loadConversationsRef = useRef();
   const loadConversationRef = useRef();
   const isSendingMessageRef = useRef(false); // Track if we're currently sending a message
+
+  // Handle window resize to detect narrow windows
+  useEffect(() => {
+    const handleResize = () => {
+      setIsNarrowWindow(window.innerWidth < 800);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // gets all the convos
   const loadConversations = useCallback(async () => {
@@ -480,6 +492,11 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  // Show warning for narrow windows (mobile or narrow desktop)
+  if (isNarrowWindow) {
+    return <MobileWarning />;
   }
 
   if (!isAuthenticated) {

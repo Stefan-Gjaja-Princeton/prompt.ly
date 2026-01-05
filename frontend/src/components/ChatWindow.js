@@ -149,7 +149,7 @@ const ChatWindow = ({
   const handleInputChange = (e) => {
     setInputMessage(e.target.value);
 
-    // Auto-resize textarea
+    // Auto-resize textarea if the user types enough
     const textarea = e.target;
     textarea.style.height = "auto";
     const newHeight = Math.min(textarea.scrollHeight, 120);
@@ -189,7 +189,7 @@ const ChatWindow = ({
 
   // Show notification popup
   const showNotification = (message) => {
-    // Calculate position synchronously ONCE and freeze it
+    // Calculate position synchronously once and then freeze it
     let position = { top: 0, left: 0 };
     if (fileInputWrapperRef.current) {
       const rect = fileInputWrapperRef.current.getBoundingClientRect();
@@ -198,7 +198,7 @@ const ChatWindow = ({
         left: rect.left + rect.width / 2, // Center horizontally
       };
     }
-    // Set position first, then notification (React batches these but position is frozen)
+    // Set position first, then notification
     setNotificationPosition(position);
     setNotification(message);
     setTimeout(() => {
@@ -218,6 +218,7 @@ const ChatWindow = ({
       file.name.toLowerCase().endsWith(".jpg") ||
       file.name.toLowerCase().endsWith(".jpeg");
 
+    // i just covered the main file types to not worry about it too much
     if (!isValidType) {
       if (showErrorNotification) {
         showNotification("Filetypes supported: PDF, PNG, JPG");
