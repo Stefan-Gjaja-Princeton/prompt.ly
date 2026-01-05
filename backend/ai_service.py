@@ -7,10 +7,12 @@ import json
 class AIService:
     def __init__(self, api_key: str):
         self.client = openai.OpenAI(api_key=api_key)
-        self.api_key = api_key  # Store for debugging (masked)
-        self.response_model = "gpt-4o" # Model for chat responses (reasoning model)
+        self.api_key = api_key  
+        # separate so I can upgrade one of them in the future without affecting the other
+        self.response_model = "gpt-4o" # Model for responses in the main chat
         self.feedback_model = "gpt-4o" # Model for feedback generation
     
+    # old function used for debugging when the API key was bubggy
     def _mask_api_key(self, api_key: str) -> str:
         """Mask API key for logging - shows first 7 and last 4 characters"""
         if not api_key or len(api_key) < 12:
@@ -18,13 +20,13 @@ class AIService:
         return f"{api_key[:7]}...{api_key[-4:]}"
     
     def _is_temperature_restricted_model(self, model: str) -> bool:
-        """Check if the model only supports temperature=1.0 (default) - o1 models and gpt-5 models"""
+        """Check if the model only supports temperature=1.0 (default) - o1 models and gpt-5 models, needed this when I was going back and forth between models"""
         temperature_restricted = ['o1', 'o1-preview', 'o1-mini', 'gpt-5']
         model_lower = model.lower()
         return any(restricted_model in model_lower for restricted_model in temperature_restricted)
     
     def _supports_streaming(self, model: str) -> bool:
-        """Check if the model supports streaming - o1 models don't support streaming, but gpt-5 models do"""
+        """Check if the model supports streaming. o1 models don't support streaming, but gpt-5 models do"""
         # o1 models don't support streaming
         non_streaming_models = ['o1', 'o1-preview', 'o1-mini']
         model_lower = model.lower()
@@ -32,6 +34,7 @@ class AIService:
     
     def _extract_pdf_text(self, base64_data: str) -> str:
         """Extract text content from a PDF file"""
+        # need to do this because OpenAI doesn't support PDFs directly, so need to extract the text
         try:
             import base64
             import io
@@ -68,7 +71,7 @@ class AIService:
         content = msg.get('content', '')
         attachments = msg.get('attachments', [])
         
-        # Separate image and PDF attachments
+        # objects to store the images and the pdfs temporarily
         image_attachments = [att for att in attachments if att.get('data') and att.get('file_type', '').startswith('image/')]
         pdf_attachments = [
             att for att in attachments 
@@ -85,7 +88,7 @@ class AIService:
             pdf_filename = pdf_att.get('filename', 'document.pdf')
             pdf_texts.append(f"[Content from {pdf_filename}]\n{pdf_text}")
         
-        # Combine original content with PDF text
+        # Combine original content with PDF text (because they are both text)
         combined_content = content
         if pdf_texts:
             combined_content = (content + "\n\n" + "\n\n".join(pdf_texts)).strip() if content else "\n\n".join(pdf_texts)
@@ -135,7 +138,7 @@ class AIService:
     def get_chat_response(self, messages: List[Dict], quality_score: float, user_name: str = None) -> str:
         """Get response from the main chat AI based on quality score"""
         
-        # this is a personalization
+        # this is a personalization so the bot seems like it's having a conversation with the user
         name_context = f" Address the user as {user_name} once every 5 messages. Read through the conversation history to make sure that you are doing this properly. Don't name the user every single time you respond." if user_name else ""
         
         if quality_score <= 3:
@@ -149,15 +152,23 @@ class AIService:
             system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is below average.{name_context}
             Provide brief responses (50-100 words) and ask follow-up questions to encourage better prompting.
             Ask for more context, specificity, or clarification. Guide them to ask better questions."""
+        elif quality_score <= 7: 
+            # verbose, but follow-up questions/directions
+            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is relatively strong, but not perfect.{name_context}
+            Provide helpful responses (100+ words) and ask follow-up questions to encourage better prompting.
+            Ask for more context, specificity, or clarification if needed. Guide them to ask better questions and to understand the material even more deeply."""
         else:
             # normal helpful responses
-            system_prompt = f"""You are a helpful AI assistant.{name_context} Provide clear, accurate, and useful responses to user questions.
-            Be thorough and helpful while encouraging good prompting practices."""
+            system_prompt = f"""You are a helpful AI assistant.{name_context} The user's prompt quality is extremely strong, so provide clear, accurate, and useful responses to user questions.
+            Be thorough and helpful while encouraging good prompting practices. Be as helpful as possible."""
         
         try:
             # Ensure messages are properly formatted
             # Filter out any messages that aren't 'user' or 'assistant' role
             # Remove timestamp fields which OpenAI doesn't accept
+
+            # messages is a list of dicts delineating the role and the content of each message
+            # the metaprompt is at the beginning of the conversation as "system"
             formatted_messages = [{"role": "system", "content": system_prompt}]
             for msg in messages:
                 if isinstance(msg, dict) and 'role' in msg:
@@ -171,7 +182,6 @@ class AIService:
             if len(formatted_messages) <= 1:  # Only system message
                 raise ValueError("No user or assistant messages found in conversation")
             
-            # Log detailed debug info
             
             # Check for image attachments
             has_images = any(
@@ -232,13 +242,14 @@ class AIService:
             print(f"ERROR: OpenAI API error ({error_type}): {error_msg}")
             import traceback
             print(f"ERROR: Traceback: {traceback.format_exc()}")
-            # Re-raise instead of returning error string so we can see the actual error
+            # Re-raise instead of returning error string so we can see the actual error (because was not caught)
             raise
     
+    # this is used by the streaming models (what the deployed version uses), basically the same stuff as before but streaming enabled in the OpenAI API call
     def get_chat_response_stream(self, messages: List[Dict], quality_score: float, user_name: str = None) -> Generator[str, None, None]:
         """Get streaming response from the main chat AI based on quality score"""
         
-        # this is a personalization
+        # this is a personalization again
         name_context = f" Address the user as {user_name} once every 5 messages. Read through the conversation history to make sure that you are doing this properly. Don't name the user every single time you respond." if user_name else ""
         
         if quality_score <= 3:
@@ -252,10 +263,15 @@ class AIService:
             system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is below average.{name_context}
             Provide brief responses (50-100 words) and ask follow-up questions to encourage better prompting.
             Ask for more context, specificity, or clarification. Guide them to ask better questions."""
+        elif quality_score <= 7: 
+            # verbose, but follow-up questions/directions
+            system_prompt = f"""You are a helpful AI assistant. The user's prompt quality is relatively strong, but not perfect.{name_context}
+            Provide helpful responses (100+ words) and ask follow-up questions to encourage better prompting.
+            Ask for more context, specificity, or clarification if needed. Guide them to ask better questions and to understand the material even more deeply."""
         else:
             # normal helpful responses
-            system_prompt = f"""You are a helpful AI assistant.{name_context} Provide clear, accurate, and useful responses to user questions.
-            Be thorough and helpful while encouraging good prompting practices."""
+            system_prompt = f"""You are a helpful AI assistant.{name_context} The user's prompt quality is extremely strong, so provide clear, accurate, and useful responses to user questions.
+            Be thorough and helpful while encouraging good prompting practices. Be as helpful as possible."""
         
         try:
             # Format messages for OpenAI API (handling attachments)
@@ -286,6 +302,7 @@ class AIService:
             api_params = {
                 "model": self.response_model,
                 "messages": formatted_messages,
+                # this is the key difference
                 "stream": True
             }
             if not self._is_temperature_restricted_model(self.response_model):
@@ -298,6 +315,7 @@ class AIService:
                 print(f"ERROR: Failed to initiate OpenAI API call: {type(api_error).__name__}: {str(api_error)}")
                 raise
             
+            # loads the stream in chunks to display
             chunk_count = 0
             for chunk in stream:
                 if chunk.choices and len(chunk.choices) > 0:
@@ -335,6 +353,7 @@ class AIService:
             print(f"ERROR: Traceback: {traceback.format_exc()}")
             raise
     
+    # because feedback happens before response, we need to extract the stuff here too
     def _format_messages_for_feedback(self, messages: List[Dict]) -> List[Dict]:
         """Format messages for feedback model, extracting PDF text and noting images"""
         formatted_messages = []
@@ -364,7 +383,7 @@ class AIService:
             if pdf_texts:
                 combined_content = (content + "\n\n" + "\n\n".join(pdf_texts)).strip() if content else "\n\n".join(pdf_texts)
             
-            # Note images if present
+            # Note images if present. It doesn't actually input the image itself because that would take more time and delay the feedback.
             if image_count > 0:
                 image_note = f"\n\n[User attached {image_count} image file(s)]"
                 combined_content = combined_content + image_note if combined_content else f"[User attached {image_count} image file(s)]"
@@ -381,11 +400,12 @@ class AIService:
     def get_feedback_response(self, messages: List[Dict], previous_scores: List[float] = None) -> Tuple[float, str, float]:
         """Get feedback and quality score for the conversation"""
         
-        # Format messages to include PDF text and note images
+        # Helper fxn helps format messages to include PDF text and note images
         formatted_messages = self._format_messages_for_feedback(messages)
         
         # Calculate conversation length and context
         conversation_length = len(formatted_messages)
+        # the full conversation does get sent to the feedback model, but here is just the user messages for addl. context
         user_messages = [msg for msg in formatted_messages if msg.get('role') == 'user']
         conversation_depth = len(user_messages)
         
@@ -393,7 +413,8 @@ class AIService:
         if previous_scores is None:
             previous_scores = []
         
-        feedback_prompt = f"""You are an EXTREMELY strict prompt 
+        # the metaprompt to the feedback model, notice how harsh it tells it to be - chat is sycophantic!
+        feedback_prompt = f"""You are a strict prompt 
         quality assessment AI. Take into account the entire conversation history
          you are given. You MUST give low scores (1-3) for poor conversations. 
          Analyze the user's latest message and the ENTIRE conversation context 
@@ -410,7 +431,7 @@ CONVERSATION CONTEXT:
 
 IMPORTANT: You MUST be harsh with scoring. Don't be generous. 
 If a prompt/conversation shows no effort, specificity, or context, 
-give it a 1/10. Most prompts should score 3-7, not 5-8.
+give it a 1/10. Most prompts should score score between 3 and 7.
 
 EXTREMELY IMPORTANT: If the request seems like a one-off factual question like
  "When does the whale bite off Captain Ahab's leg in Moby Dick," 
@@ -464,11 +485,12 @@ EXAMPLES OF LOW SCORES (be VERY strict):
 - "maybe" (no context or question) = 1/10
 - "idk" (lazy, no effort) = 1/10
 - "whatever" (no effort) = 1/10
+- a prompt that gives clear directions but seems like assignment instructions (no critical thinking nor self-direction)= 2/10
 
 EXAMPLES OF HIGH SCORES:
-- "Based on our discussion about machine learning, can you explain how neural networks differ from decision trees in terms of interpretability?" = 8-9/10
-- "I'm working on a Python project for data analysis. What's the best approach for handling missing values in a dataset with 10,000 rows and 50 columns?" = 7-8/10
-- "Here is an outline I've been working on, complete with a thesis statement and body paragraph ideas. Can you give me feedback on it and give me some ideas for evidence I can use in the body paragraphs?" = 8/10
+- "Based on our discussion about machine learning, can you explain how neural networks differ from decision trees in terms of interpretability?" (establishes context, specific ask)= 8-9/10
+- "I'm working on a Python project for data analysis. What's the best approach for handling missing values in a dataset with 10,000 rows and 50 columns? Based on your answer, I will code the approach myself and test its efficacy." (appropriate context, clear self-direction, specific ask)= 9/10
+- "Here is an outline I've been working on, complete with a thesis statement and body paragraph ideas. Can you give me feedback on it and give me some ideas for evidence I can use in the body paragraphs?" (clear self-direction, demonstration of critical thinking) = 8/10
 
 Provide:
 1. A numerical score (1-10) - be strict!
@@ -519,13 +541,14 @@ Format your response as JSON:
             try:
                 feedback_data = json.loads(json_text)
                 current_message_score = float(feedback_data.get('score', 5.0))
+                # just prevents any error from the model if the score is higher than 10
                 current_message_score = min(current_message_score, 10.0)
                 current_message_score = round(current_message_score, 1)
                 
                 # Use current message score as quality score
                 quality_score = current_message_score
                 
-                # Build feedback object with new structure
+                # Build feedback object with new structure, this is what is displayed to the user. Has fallback options too.
                 feedback = {
                     'quality_label': feedback_data.get('quality_label', 'Fair'),
                     'improvement_tips': feedback_data.get('improvement_tips', [
@@ -568,6 +591,8 @@ Format your response as JSON:
         except Exception as e:
             return 5.0, f"Error generating feedback: {str(e)}", 5.0
     
+    # this is only called when the first messgae is sent to a conversation so a title can be created for a conversation
+    # simple title creation API call and then formatting code
     def get_conversation_title(self, messages: List[Dict], use_ai_generation: bool = True) -> str:
         """Generate a title for the conversation based on the first message"""
         if not messages:

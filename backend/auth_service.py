@@ -82,10 +82,9 @@ class AuthService:
             return None
         
         # Try to extract email from various possible locations in the token
-        # Auth0 typically includes email in the 'email' claim when scope includes 'email'
         email = payload.get('email')
         
-        # If email not found in standard location, try alternative locations
+        # If email not found in standard location, try alternative locations like auth0 namespaces
         if not email:
             email = (
                 payload.get('https://promptly.app/email') or
@@ -93,6 +92,7 @@ class AuthService:
                 (payload.get('https://promptly.app/user_metadata', {}).get('email') if isinstance(payload.get('https://promptly.app/user_metadata'), dict) else None)
             )
         
+        # other user information
         name = payload.get('name')
         picture = payload.get('picture')
         nickname = payload.get('nickname')
@@ -142,7 +142,7 @@ class AuthService:
                     print(f"ERROR: Cannot get user email. Sub: {payload.get('sub')}")
                     return None
         
-        # Email is required for database operations
+        # Email is required for database operations so we really need this
         if not email or '@' not in str(email):
             print(f"ERROR: Invalid or missing email in token.")
             print(f"ERROR: Sub: {payload.get('sub')}")
@@ -171,6 +171,7 @@ auth_service = AuthService()
 
 def require_auth(f):
     """Decorator to require authentication for routes"""
+    # makes sure every request is authenticated (which is why you see the tag in all of the endpoints)
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')

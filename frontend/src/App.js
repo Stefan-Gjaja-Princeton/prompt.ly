@@ -363,19 +363,39 @@ function App() {
         // onError callback
         (errorData) => {
           console.error("Streaming error:", errorData);
+
+          // Check if this is a connection abort (e.g., page refresh)
+          const errorMessageLower = errorData.error?.toLowerCase() || "";
+          const isConnectionAbort =
+            errorMessageLower.includes("failed to fetch") ||
+            errorMessageLower.includes("networkerror") ||
+            errorMessageLower.includes("network error") ||
+            errorMessageLower.includes("aborted") ||
+            errorMessageLower.includes("aborterror") ||
+            errorData.error?.name === "TypeError" || // Failed to fetch is a TypeError
+            errorData.error?.name === "AbortError";
+
           // Remove streaming message on error
           setMessages((prev) =>
             prev.filter((msg) => msg._id !== streamingMessageId)
           );
 
-          let errorMessage = "Failed to get AI response. ";
-          if (errorData.error) {
-            errorMessage += errorData.error;
-          } else if (errorData.details) {
-            errorMessage += errorData.details;
+          // Only show alert if it's not a connection abort
+          if (!isConnectionAbort) {
+            let errorMessage = "Failed to get AI response. ";
+            if (errorData.error) {
+              errorMessage += errorData.error;
+            } else if (errorData.details) {
+              errorMessage += errorData.details;
+            }
+            alert(errorMessage);
+          } else {
+            // Silently handle connection abort - user likely refreshed
+            console.log(
+              "Streaming connection aborted (likely due to page refresh)"
+            );
           }
 
-          alert(errorMessage);
           isSendingMessageRef.current = false;
           setLoading(false);
         }

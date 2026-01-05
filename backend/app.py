@@ -37,7 +37,7 @@ else:
 # Initialize database contact
 db = Database()
 
-# Check if API key is available
+# Check if API key is available, this code was put in place when I was struggling with API issues
 if not Config.OPENAI_API_KEY or Config.OPENAI_API_KEY == "your-api-key-here":
     print("ERROR: OpenAI API key not found!")
     print("Please set your API key in one of these ways:")
@@ -46,6 +46,7 @@ if not Config.OPENAI_API_KEY or Config.OPENAI_API_KEY == "your-api-key-here":
     print("3. Create backend/.env file with: OPENAI_API_KEY=your-key-here")
     exit(1)
 
+# starts up the OpenAI API service
 ai_service = AIService(Config.OPENAI_API_KEY)
 
 # Initialize message cache (in-memory storage for messages with base64 data)
@@ -55,23 +56,23 @@ app._message_cache_timestamps = {}
 
 def extract_user_name(user_data, user_from_db=None):
     """Extract user's first name from Auth0 data or database, with fallbacks"""
-    # Priority 1: Database
+    # Option 1 - gets from database
     if user_from_db and user_from_db.get('first_name'):
         return user_from_db['first_name']
     
-    # Priority 2: Auth0 name field
+    # Second option - gets from Auth0 name field
     name = user_data.get('name')
     if isinstance(name, list) and len(name) > 0:
         return name[0]
     elif isinstance(name, str) and name.strip():
         return name.strip().split()[0]
     
-    # Priority 3: Auth0 nickname
+    # Could also have auth0 nickname
     nickname = user_data.get('nickname')
     if nickname:
         return nickname
     
-    # Priority 4: Email prefix (last resort)
+    # Email prefix (last resort)
     email = user_data.get('email', '')
     if email:
         return email.split('@')[0]
@@ -83,96 +84,7 @@ def extract_user_name(user_data, user_from_db=None):
 def health_check():
     return jsonify({"status": "healthy"})
 
-# Endpoint to clear message cache (useful for debugging and recovery)
-@app.route('/api/admin/clear-cache', methods=['POST'])
-@require_auth
-def clear_cache():
-    """Clear the message cache (admin/debugging endpoint)"""
-    try:
-        if hasattr(app, '_message_cache'):
-            cache_size = len(app._message_cache)
-            app._message_cache.clear()
-            if hasattr(app, '_message_cache_timestamps'):
-                app._message_cache_timestamps.clear()
-            return jsonify({
-                "message": "Cache cleared successfully",
-                "entries_cleared": cache_size
-            })
-        else:
-            return jsonify({"message": "Cache was already empty"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Debug endpoint to test OpenAI API connectivity
-@app.route('/api/debug/test-openai', methods=['POST'])
-@require_auth
-def test_openai():
-    """Test OpenAI API connectivity and configuration"""
-    try:
-        test_messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Say 'Hello, API test successful!' and nothing else."}
-        ]
-        
-        # Mask API key for display (show first 7 and last 4 chars)
-        def mask_api_key(key):
-            if not key or len(key) < 12:
-                return "***INVALID***"
-            return f"{key[:7]}...{key[-4:]}"
-        
-        result = {
-            "status": "testing",
-            "model": ai_service.response_model,
-            "api_key_set": bool(Config.OPENAI_API_KEY and Config.OPENAI_API_KEY != "your-api-key-here"),
-            "api_key_length": len(Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else 0,
-            "api_key_preview": mask_api_key(Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else "NOT SET"
-        }
-        
-        try:
-            response = ai_service.client.chat.completions.create(
-                model=ai_service.response_model,
-                messages=test_messages,
-                max_tokens=50
-            )
-            
-            if response.choices and response.choices[0].message:
-                content = response.choices[0].message.content
-                result.update({
-                    "status": "success",
-                    "response": content,
-                    "usage": {
-                        "prompt_tokens": response.usage.prompt_tokens if hasattr(response, 'usage') and response.usage else None,
-                        "completion_tokens": response.usage.completion_tokens if hasattr(response, 'usage') and response.usage else None,
-                        "total_tokens": response.usage.total_tokens if hasattr(response, 'usage') and response.usage else None
-                    }
-                })
-            else:
-                result.update({
-                    "status": "error",
-                    "error": "Empty response from OpenAI"
-                })
-                
-        except Exception as e:
-            error_type = type(e).__name__
-            error_msg = str(e)
-            result.update({
-                "status": "error",
-                "error_type": error_type,
-                "error": error_msg
-            })
-            print(f"ERROR: OpenAI API test failed: {error_type}: {error_msg}")
-            import traceback
-            print(traceback.format_exc())
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "error": f"Test endpoint error: {str(e)}"
-        }), 500
-
-# get user profile endpoint
+# get user profile endpoint for display on homepage top ribbon
 @app.route('/api/user/profile', methods=['GET'])
 @require_auth
 def get_user_profile():
@@ -205,7 +117,7 @@ def get_user_profile():
         profile_picture_url = user_data.get('picture')
         
         if not existing_user:
-            # Create new user from Auth0 data
+            # Create new user from Auth0 data if they don't currently exist in DB
             db.create_user(
                 email=email,
                 first_name=first_name,
@@ -263,11 +175,11 @@ def get_user_profile():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# get all conversations from a specific user endpoint
+# get all conversations from a specific user endpoint (this is the main conversation list)
 @app.route('/api/conversations', methods=['GET'])
 @require_auth
 def get_conversations():
-    """Get all conversations for the authenticated user with pagination"""
+    """Get all conversations for the authenticated user with pagination optional if I decide to enable that for potential speedup"""
     try:
         user_email = request.current_user.get('email')
         if not user_email:
@@ -287,14 +199,14 @@ def get_conversations():
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
-# endpoint to make a new convo
+# endpoint to make a new convo (user sends a message)
 @app.route('/api/conversations', methods=['POST'])
 @require_auth
 def create_conversation():
     """Create a new conversation"""
     try:
         user_email = request.current_user['email']
-        # unique identifier
+        # unique identifier uuid for the database to use as the primary key
         conversation_id = str(uuid.uuid4())
         
         # Ensure user exists in DB, doesn't do anything if already in there
@@ -314,14 +226,14 @@ def create_conversation():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# endpoint to get a speific conversation
+# endpoint to get a speific conversation (when users click on the frontend)
 @app.route('/api/conversations/<conversation_id>', methods=['GET'])
 @require_auth
 def get_conversation(conversation_id):
     """Get a specific conversation, optionally limiting to last N messages"""
     try:
         # Get limit parameter (default: None = load all messages, since conversations are capped at 20 user messages)
-        # For very long conversations, you can pass limit_messages to load only recent ones
+        # For very long conversations, you can pass limit_messages to load only recent ones (just a structure put into place in case I remove the 20 messages cap in the future)
         limit_messages = request.args.get('limit_messages', type=int)
         conversation = db.get_conversation(conversation_id, limit_messages=limit_messages)
         if conversation:
@@ -364,7 +276,7 @@ def send_message(conversation_id):
         conversation = db.get_conversation(conversation_id)
         if not conversation:
             # Conversation doesn't exist - create it now (this happens when user clicks plus button but hasn't sent a message yet)
-            # Ensure user exists in DB
+            # Ensure user exists in DB (idempotent function I think is the right word)
             db.create_user(user_email)
             # Create conversation with the provided conversation_id
             success = db.create_conversation(user_email, conversation_id)
@@ -456,22 +368,12 @@ def send_message(conversation_id):
                 ]
             messages_for_storage.append(msg_copy)
         
-        # Store messages with base64 temporarily in a session/cache for AI response
-        # We'll store it in the conversation temporarily by keeping it in messages_for_ai
-        # Actually, we need to pass messages with base64 to get_ai_response
-        # For now, let's store messages with base64 in a temporary way
-        # We'll modify get_ai_response to accept messages directly or reconstruct from request
-        
         # Update conversation with new messages, quality score, and feedback FIRST
         # Serialize feedback dict to JSON string for storage
         new_message_scores = previous_scores + [current_message_score]
         feedback_json = json.dumps(feedback) if isinstance(feedback, dict) else feedback
         db.update_conversation(conversation_id, messages_for_storage, quality_score, new_message_scores, feedback_json, title=title)
         
-        # Store messages with base64 in a temporary location for AI response
-        # We'll use a simple in-memory cache keyed by conversation_id
-        # In production, you might want to use Redis or similar
-        # Cache expires after 5 minutes (300 seconds) to prevent memory leaks
         
         import time
         # Initialize cache if it doesn't exist (shouldn't happen after startup, but just in case)
@@ -480,6 +382,7 @@ def send_message(conversation_id):
             app._message_cache_timestamps = {}
         
         # Clean up old cache entries first (older than 5 minutes)
+        # shouldn't need to do this but just prevents memory leaks (if the user reloads the page mid response)
         current_time = time.time()
         expired_keys = [
             key for key, timestamp in list(app._message_cache_timestamps.items())
@@ -537,6 +440,7 @@ def get_ai_response(conversation_id):
             if conversation_id in app._message_cache:
                 cache_age = current_time - app._message_cache_timestamps.get(conversation_id, 0)
                 if cache_age < 300:  # Cache valid for 5 minutes
+                    # get the stuff from the cache
                     messages = app._message_cache[conversation_id]
                     # Remove from cache after use (one-time use)
                     del app._message_cache[conversation_id]
@@ -625,7 +529,7 @@ def get_ai_response(conversation_id):
                 import time
                 import sys
                 
-                # Check if model supports streaming (o1 models don't, but gpt-5 models do)
+                
                 from ai_service import AIService
                 
                 # Debug: Check if messages have image attachments
@@ -634,9 +538,9 @@ def get_ai_response(conversation_id):
                     for msg in messages if msg.get('role') == 'user'
                 )
 
-                
+                # Check if model supports streaming (o1 models don't, but gpt-5 models do)
                 if not ai_service._supports_streaming(ai_service.response_model):
-                    # o1 models don't support streaming - use non-streaming method and simulate streaming
+                    # o1 models don't support streaming - use non-streaming method and basically pretend its streaming for consistent user behavior
                     ai_response = ai_service.get_chat_response(messages, current_quality_score, user_name=first_name)
                     
                     if not ai_response:
@@ -721,37 +625,6 @@ def get_ai_response(conversation_id):
             "error": "Server error occurred",
             "details": error_msg
         }), 500
-
-@app.route('/api/conversations/<conversation_id>/title', methods=['PUT'])
-@require_auth
-def update_conversation_title(conversation_id):
-    """Update conversation title"""
-    try:
-        data = request.get_json()
-        title = data.get('title', '')
-        
-        if not title:
-            return jsonify({"error": "Title is required"}), 400
-        
-        # Get conversation to update
-        conversation = db.get_conversation(conversation_id)
-        if not conversation:
-            return jsonify({"error": "Conversation not found"}), 404
-        
-        # Update just the title
-        db.update_conversation(
-            conversation_id,
-            conversation.get('messages', []),
-            conversation.get('quality_score', 5.0),
-            conversation.get('message_scores', []),
-            conversation.get('feedback'),
-            title=title
-        )
-        
-        return jsonify({"message": "Title updated successfully"})
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     print("Starting Prompt.ly backend server...")

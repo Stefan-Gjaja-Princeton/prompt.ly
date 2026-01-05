@@ -11,6 +11,7 @@ try:
 except ImportError:
     API_KEY_FROM_FILE = None
 
+# get all these from the .env file (accidentally had pushed this before, whoops!)
 class Config:
     # Use environment variable first, then file, then None
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or API_KEY_FROM_FILE
