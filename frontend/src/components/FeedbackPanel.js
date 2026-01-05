@@ -2,17 +2,11 @@
 //experience with frontend development, especially using React, so it could help me implement
 // things that I was more familiar with in this language.
 
-// also a huge priority for modification
 import React from "react";
 import { Gauge, ListChecks, Lightbulb, Info } from "lucide-react";
 import "./FeedbackPanel.css";
 
-const FeedbackPanel = ({
-  qualityScore,
-  feedback,
-  isTerse,
-  loading = false,
-}) => {
+const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
   const getScoreColor = (score) => {
     if (score === null) return "#6c757d"; // Gray for no score
     if (score >= 8) return "#008500";

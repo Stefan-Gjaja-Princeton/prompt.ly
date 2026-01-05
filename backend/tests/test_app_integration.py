@@ -72,34 +72,18 @@ class TestAppIntegration:
         # Mock get_user_from_token to return user data
         mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
         
-        # Mock conversation - first call returns None (doesn't exist), then returns conversation
-        # The endpoint calls get_conversation multiple times: 
-        # 1. Check if exists (returns None)
-        # 2. After creation (returns conversation)
-        # 3. After update to get title (returns updated conversation)
+        # Mock conversation
         mock_conversation = {
             "conversation_id": "test-123",
-            "user_email": "test@example.com",
             "messages": [],
             "quality_score": None,
-            "message_scores": [],
-            "title": None
+            "message_scores": []
         }
-        mock_conversation_updated = mock_conversation.copy()
-        mock_conversation_updated["title"] = "Test Conversation"
-        mock_db.get_conversation.side_effect = [None, mock_conversation, mock_conversation_updated]
-        mock_db.create_user.return_value = True
-        mock_db.create_conversation.return_value = True
+        mock_db.get_conversation.return_value = mock_conversation
         mock_db.update_conversation.return_value = True
         
-        # Mock AI service - feedback is now a dict
-        mock_feedback = {
-            "quality_label": "Good",
-            "improvement_tips": ["Be more specific", "Add context", "Ask focused questions"],
-            "example_improved_prompt": "Example prompt"
-        }
-        mock_ai_service.get_feedback_response.return_value = (7.5, mock_feedback, 7.5)
-        mock_ai_service.get_conversation_title.return_value = "Test Conversation"
+        # Mock AI service
+        mock_ai_service.get_feedback_response.return_value = (7.5, "Good prompt!", 7.5)
         
         response = client.post(
             '/api/conversations/test-123/messages',
@@ -115,7 +99,7 @@ class TestAppIntegration:
     @patch('app.ai_service')
     @patch('auth_service.auth_service')
     def test_get_ai_response(self, mock_auth_service, mock_ai_service, mock_db, client):
-        """Test getting AI response (streaming)"""
+        """Test getting AI response"""
         # Mock get_user_from_token to return user data
         mock_auth_service.get_user_from_token.return_value = {
             "email": "test@example.com",
@@ -126,7 +110,6 @@ class TestAppIntegration:
         # Mock conversation with messages
         mock_conversation = {
             "conversation_id": "test-123",
-            "user_email": "test@example.com",
             "messages": [
                 {"role": "user", "content": "Hello", "timestamp": "2024-01-01T00:00:00"}
             ],
@@ -134,28 +117,16 @@ class TestAppIntegration:
             "message_scores": [7.5]
         }
         mock_db.get_conversation.return_value = mock_conversation
-        mock_db.get_user_by_email.return_value = {"first_name": "Test"}
         mock_db.update_conversation.return_value = True
         
-        # Mock AI service - simulate streaming response
-        def mock_stream():
-            yield "This "
-            yield "is "
-            yield "an AI response."
-        
-        # Mock the _supports_streaming method and get_chat_response_stream
-        mock_ai_service._supports_streaming.return_value = True
-        mock_ai_service.response_model = "gpt-4o"
-        mock_ai_service.get_chat_response_stream.return_value = mock_stream()
+        # Mock AI service
+        mock_ai_service.get_chat_response.return_value = "This is an AI response."
         
         response = client.post('/api/conversations/test-123/response', headers={'Authorization': 'Bearer test-token'})
         assert response.status_code == 200
-        assert 'text/event-stream' in response.content_type
-        
-        # Parse SSE response - should contain chunks
-        response_data = response.data.decode('utf-8')
-        # Should contain SSE format data
-        assert 'data:' in response_data
+        data = json.loads(response.data)
+        assert 'ai_response' in data
+        assert data['ai_response'] == "This is an AI response."
     
     def test_get_conversations_requires_auth(self, client):
         """Test that conversations endpoint requires authentication"""

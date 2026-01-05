@@ -576,6 +576,60 @@ class Database:
             if conn:
                 self._close_connection(conn)
     
+    def delete_conversation(self, conversation_id: str, user_email: str) -> bool:
+        """Delete a conversation, verifying it belongs to the user"""
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # First verify the conversation belongs to the user
+            if self.use_postgres:
+                cursor.execute(
+                    "SELECT user_email FROM conversations WHERE conversation_id = %s",
+                    (conversation_id,)
+                )
+            else:
+                cursor.execute(
+                    "SELECT user_email FROM conversations WHERE conversation_id = ?",
+                    (conversation_id,)
+                )
+            
+            result = cursor.fetchone()
+            
+            if not result:
+                # Conversation doesn't exist
+                return False
+            
+            if result[0] != user_email:
+                # Conversation belongs to a different user
+                return False
+            
+            # Delete the conversation
+            if self.use_postgres:
+                cursor.execute(
+                    "DELETE FROM conversations WHERE conversation_id = %s AND user_email = %s",
+                    (conversation_id, user_email)
+                )
+            else:
+                cursor.execute(
+                    "DELETE FROM conversations WHERE conversation_id = ? AND user_email = ?",
+                    (conversation_id, user_email)
+                )
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            print(f"Error deleting conversation: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return False
+        finally:
+            if conn:
+                self._close_connection(conn)
+    
     def update_conversation(self, conversation_id: str, messages: List[Dict], quality_score: float, message_scores: List[float] = None, feedback: str = None, title: str = None):
         """Update conversation with new messages, quality score, feedback, and optionally title"""
         conn = None

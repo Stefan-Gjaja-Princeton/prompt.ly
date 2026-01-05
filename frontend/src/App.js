@@ -14,6 +14,7 @@ import FeedbackPanel from "./components/FeedbackPanel";
 import UserHeader from "./components/UserHeader";
 import LoginPage from "./components/LoginPage";
 import MobileWarning from "./components/MobileWarning";
+import ConfirmationModal from "./components/ConfirmationModal";
 import { createApiService } from "./services/apiService";
 
 function App() {
@@ -36,11 +37,15 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [isNarrowWindow, setIsNarrowWindow] = useState(window.innerWidth < 800);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState(null);
 
   // Use refs to store latest callbacks without triggering re-renders
   const loadConversationsRef = useRef();
   const loadConversationRef = useRef();
   const isSendingMessageRef = useRef(false); // Track if we're currently sending a message
+  const abortControllerRef = useRef(null); // Track active streaming request for abort capability
+  const feedbackAbortControllerRef = useRef(null); // Track active feedback request for abort capability
 
   // Handle window resize to detect narrow windows
   useEffect(() => {
@@ -237,13 +242,18 @@ function App() {
 
     setLoading(true);
     setFeedbackLoading(true);
+
+    // Create AbortController for feedback request
+    feedbackAbortControllerRef.current = new AbortController();
+
     try {
       // Step 1: Get feedback and score immediately
       // Backend will create the conversation if it doesn't exist
       const feedbackResponse = await apiService.sendMessage(
         activeConversationId,
         message,
-        fileAttachments
+        fileAttachments,
+        feedbackAbortControllerRef.current.signal
       );
 
       // Update feedback and score immediately
@@ -285,10 +295,16 @@ function App() {
       // Stop feedback loading immediately
       setFeedbackLoading(false);
 
+      // Clear feedback abort controller on successful completion
+      feedbackAbortControllerRef.current = null;
+
       // Step 2: Get AI response after feedback is ready (streaming)
       // Don't add message until first chunk arrives
       const streamingMessageId = Date.now();
       let streamingMessageAdded = false;
+
+      // Create AbortController for this stream
+      abortControllerRef.current = new AbortController();
 
       // Stream AI response
       let fullResponse = "";
@@ -324,6 +340,9 @@ function App() {
         },
         // onComplete callback
         (completeResponse) => {
+          // Clear abort controller on completion
+          abortControllerRef.current = null;
+
           // Replace streaming message with final message
           setMessages((prev) => {
             const updated = prev.map((msg) =>
@@ -392,9 +411,11 @@ function App() {
         },
         // onError callback
         (errorData) => {
+          // Clear abort controller on error
+          abortControllerRef.current = null;
           console.error("Streaming error:", errorData);
 
-          // Check if this is a connection abort (e.g., page refresh)
+          // Check if this is a connection abort (e.g., page refresh or user-initiated abort)
           const errorMessageLower = errorData.error?.toLowerCase() || "";
           const isConnectionAbort =
             errorMessageLower.includes("failed to fetch") ||
@@ -428,9 +449,43 @@ function App() {
 
           isSendingMessageRef.current = false;
           setLoading(false);
-        }
+        },
+        // AbortController signal
+        abortControllerRef.current?.signal
       );
     } catch (error) {
+      // Clear feedback abort controller on error
+      feedbackAbortControllerRef.current = null;
+
+      // Check if error is due to abort
+      const isAbortError =
+        error.name === "AbortError" ||
+        error.name === "CanceledError" ||
+        error.code === "ERR_CANCELED" ||
+        (error.message && error.message.includes("canceled"));
+
+      if (isAbortError) {
+        // Silently handle abort - conversation was likely deleted
+        console.log("Feedback request aborted");
+
+        // Remove the user message that was added
+        setMessages((prev) => {
+          // Remove the last user message (the one that triggered this request)
+          const userMessages = prev.filter((msg) => msg.role === "user");
+          if (userMessages.length > 0) {
+            const lastUserMessage = userMessages[userMessages.length - 1];
+            return prev.filter((msg) => msg !== lastUserMessage);
+          }
+          return prev;
+        });
+
+        // Reset loading states
+        setLoading(false);
+        setFeedbackLoading(false);
+        isSendingMessageRef.current = false;
+        return;
+      }
+
       console.error("Error sending message:", error);
 
       // Handle different error types
@@ -484,6 +539,103 @@ function App() {
     setCurrentConversationId(conversationId);
   };
 
+  const handleDeleteClick = (conversationId) => {
+    setConversationToDelete(conversationId);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!conversationToDelete) return;
+
+    setShowDeleteConfirm(false);
+
+    // Check if we need to abort active requests for this conversation
+    const isDeletingActiveConversation =
+      currentConversationId === conversationToDelete;
+    const hasActiveStream = abortControllerRef.current !== null;
+    const hasActiveFeedback = feedbackAbortControllerRef.current !== null;
+
+    // If deleting the active conversation and there's a feedback request, abort it
+    if (isDeletingActiveConversation && hasActiveFeedback) {
+      feedbackAbortControllerRef.current.abort();
+      feedbackAbortControllerRef.current = null;
+
+      // Remove the last user message (the one that triggered the feedback)
+      setMessages((prev) => {
+        const userMessages = prev.filter((msg) => msg.role === "user");
+        if (userMessages.length > 0) {
+          const lastUserMessage = userMessages[userMessages.length - 1];
+          return prev.filter((msg) => msg !== lastUserMessage);
+        }
+        return prev;
+      });
+
+      // Reset loading states
+      setLoading(false);
+      setFeedbackLoading(false);
+      isSendingMessageRef.current = false;
+    }
+
+    // If deleting the active conversation and there's a stream, abort it
+    if (isDeletingActiveConversation && hasActiveStream) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+
+      // Remove streaming messages from the UI
+      setMessages((prev) => prev.filter((msg) => !msg._streaming));
+
+      // Clear loading state
+      setLoading(false);
+    }
+
+    try {
+      await apiService.deleteConversation(conversationToDelete);
+
+      // If the deleted conversation is currently open, clear it
+      if (isDeletingActiveConversation) {
+        setCurrentConversationId(null);
+        setMessages([]);
+        setQualityScore(null);
+        setFeedback(null);
+        setIsTerse(false);
+      }
+
+      // Reload conversations list
+      await loadConversations();
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+      let errorMessage = "Failed to delete conversation. ";
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+
+        if (status === 404) {
+          errorMessage = "Conversation not found.";
+        } else if (status === 401) {
+          errorMessage =
+            "Authentication failed. Please try logging out and back in.";
+        } else if (data?.error) {
+          errorMessage += data.error;
+        } else {
+          errorMessage += `Error ${status}: ${
+            error.message || "Unknown error"
+          }`;
+        }
+      } else {
+        errorMessage += error.message || "Unknown error occurred.";
+      }
+
+      alert(errorMessage);
+    } finally {
+      setConversationToDelete(null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setConversationToDelete(null);
+  };
+
   if (isLoading) {
     return (
       <div className="app app-loading">
@@ -512,6 +664,7 @@ function App() {
           currentConversationId={currentConversationId}
           onSelectConversation={selectConversation}
           onCreateNew={createNewConversation}
+          onDeleteConversation={handleDeleteClick}
           loading={conversationsLoading}
           isNewConversation={messages.length === 0}
         />
@@ -533,6 +686,16 @@ function App() {
           loading={feedbackLoading}
         />
       </div>
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        title="Delete Conversation"
+        message="Are you sure you want to delete this conversation? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+        confirmButtonColor="#d32f2f"
+      />
     </div>
   );
 }

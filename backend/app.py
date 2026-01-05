@@ -243,6 +243,29 @@ def get_conversation(conversation_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# endpoint to delete a conversation
+@app.route('/api/conversations/<conversation_id>', methods=['DELETE'])
+@require_auth
+def delete_conversation(conversation_id):
+    """Delete a conversation"""
+    try:
+        user_email = request.current_user.get('email')
+        if not user_email:
+            return jsonify({"error": "User email not found"}), 500
+        
+        success = db.delete_conversation(conversation_id, user_email)
+        
+        if success:
+            return jsonify({"message": "Conversation deleted successfully"}), 200
+        else:
+            return jsonify({"error": "Conversation not found or access denied"}), 404
+            
+    except Exception as e:
+        print(f"ERROR in delete_conversation endpoint: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
 # endpoint to send a message in a specific conversation
 @app.route('/api/conversations/<conversation_id>/messages', methods=['POST'])
 @require_auth

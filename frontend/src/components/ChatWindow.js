@@ -238,7 +238,7 @@ const ChatWindow = ({
     return file;
   };
 
-  // Helper function to create file preview object
+  // Helper function to create file preview object (so when users attach they can see a little thumbnail of what they've attached)
   const createFilePreview = (file, callback) => {
     const isImage =
       file.type.startsWith("image/") ||
@@ -361,6 +361,7 @@ const ChatWindow = ({
     }
   };
 
+  // so that times display properly for the messages users send
   const formatTime = (timestamp) => {
     return new Date(timestamp).toLocaleTimeString([], {
       hour: "2-digit",

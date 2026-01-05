@@ -112,8 +112,19 @@ export const createApiService = (getAccessTokenSilently) => {
       return response.data;
     },
 
+    // Delete a conversation
+    deleteConversation: async (conversationId) => {
+      const response = await api.delete(`/conversations/${conversationId}`);
+      return response.data;
+    },
+
     // Send a message to a conversation (with optional file attachments - up to 3)
-    sendMessage: async (conversationId, message, fileAttachments = null) => {
+    sendMessage: async (
+      conversationId,
+      message,
+      fileAttachments = null,
+      signal = null
+    ) => {
       const payload = {
         message: message,
       };
@@ -129,12 +140,19 @@ export const createApiService = (getAccessTokenSilently) => {
 
       const response = await api.post(
         `/conversations/${conversationId}/messages`,
-        payload
+        payload,
+        { signal: signal } // Add AbortController signal
       );
       return response.data;
     },
 
-    getAIResponse: async (conversationId, onChunk, onComplete, onError) => {
+    getAIResponse: async (
+      conversationId,
+      onChunk,
+      onComplete,
+      onError,
+      signal = null
+    ) => {
       // Streaming version using fetch for Server-Sent Events
       try {
         const token = await getAccessTokenSilently();
@@ -146,6 +164,7 @@ export const createApiService = (getAccessTokenSilently) => {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
+            signal: signal, // Add AbortController signal
           }
         );
 
@@ -196,6 +215,12 @@ export const createApiService = (getAccessTokenSilently) => {
           }
         }
       } catch (error) {
+        // Handle abort gracefully - don't show error for user-initiated aborts
+        if (error.name === "AbortError" || signal?.aborted) {
+          console.log("Stream aborted");
+          // Silently stop - don't call onError for aborts
+          return;
+        }
         console.error("Streaming error:", error);
         if (onError) {
           onError({ error: error.message });

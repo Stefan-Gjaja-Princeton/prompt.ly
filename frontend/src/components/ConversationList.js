@@ -2,7 +2,7 @@
 //experience with frontend development, especially using React, so it could help me implement
 //things that I was more familiar with in this language.
 import React from "react";
-import { Plus, MessageSquare, Clock } from "lucide-react";
+import { Plus, MessageSquare, Clock, Trash2 } from "lucide-react";
 import "./ConversationList.css";
 
 const ConversationList = ({
@@ -10,6 +10,7 @@ const ConversationList = ({
   currentConversationId,
   onSelectConversation,
   onCreateNew,
+  onDeleteConversation,
   loading = false,
   isNewConversation = false,
 }) => {
@@ -91,6 +92,16 @@ const ConversationList = ({
                   </span>
                 </div>
               </div>
+              <button
+                className="delete-conversation-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteConversation(conversation.conversation_id);
+                }}
+                title="Delete conversation"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
           ))
         )}
