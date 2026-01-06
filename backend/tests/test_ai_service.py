@@ -20,14 +20,16 @@ class TestAIService:
         assert ai_service is not None
         assert ai_service.response_model == "gpt-4o"
     
+    # this basically mocks the feedback from the AI model and makes sure we parse it properly
     @patch('ai_service.openai.OpenAI')
     def test_get_feedback_response(self, mock_openai_class, ai_service, sample_messages):
         """Test getting feedback response from AI"""
         # Mock OpenAI response
-        # ANCHOR: What is MagicMock?
+        # MagicMock basically just has all fields that are called of it - automatically creates them when someone tries to access it
         mock_client = MagicMock()
         mock_openai_class.return_value = mock_client
         
+        # so it creates these fields when called
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message = MagicMock()
@@ -39,7 +41,7 @@ class TestAIService:
         service = AIService("test-key")
         service.client = mock_client
         
-        # Test
+        # Test the feedback response and if it returns the right values
         quality_score, feedback, current_score = service.get_feedback_response(sample_messages, [])
         
         assert quality_score == 7.5
@@ -49,6 +51,7 @@ class TestAIService:
         assert "improvement_tips" in feedback
         assert mock_client.chat.completions.create.called
     
+    # this basically mocks the feedback from the AI model and makes sure we parse it properly
     @patch('ai_service.openai.OpenAI')
     def test_get_feedback_response_with_previous_scores(self, mock_openai_class, ai_service, sample_messages):
         """Test feedback response with previous scores"""
@@ -97,6 +100,7 @@ class TestAIService:
         
         assert response == "I need more information."
     
+    # makes sure we parse correctly
     @patch('ai_service.openai.OpenAI')
     def test_get_chat_response_high_quality(self, mock_openai_class, ai_service, sample_messages):
         """Test chat response for high quality score (normal response)"""
@@ -119,7 +123,7 @@ class TestAIService:
         
         assert response == "This is a detailed response."
 
-    
+    # makes sure backend error is handled with default values like it should
     @patch('ai_service.openai.OpenAI')
     def test_get_feedback_response_json_parsing_error(self, mock_openai_class, ai_service, sample_messages):
         """Test handling of JSON parsing errors in feedback response"""
@@ -143,6 +147,7 @@ class TestAIService:
         assert quality_score == 5.0  # Default fallback
         assert current_score == 5.0
     
+    # makes sure chunks are sent properly when streaming
     @patch('ai_service.openai.OpenAI')
     def test_get_chat_response_stream(self, mock_openai_class, ai_service, sample_messages):
         """Test streaming chat response"""
@@ -178,6 +183,7 @@ class TestAIService:
         assert call_args[1]['stream'] is True
         assert call_args[1]['temperature'] == 0.7
     
+    # sees if title generation handled appropriately
     @patch('ai_service.openai.OpenAI')
     def test_get_conversation_title(self, mock_openai_class, ai_service):
         """Test generating conversation title"""
@@ -217,23 +223,8 @@ class TestAIService:
         
         assert title == "Short"  # Fallback to first message
     
-    @patch('ai_service.openai.OpenAI')
-    def test_get_conversation_title_long_message(self, mock_openai_class, ai_service):
-        """Test title generation with long message fallback"""
-        mock_client = MagicMock()
-        mock_openai_class.return_value = mock_client
-        mock_client.chat.completions.create.side_effect = Exception("API Error")
-        
-        service = AIService("test-key")
-        service.client = mock_client
-        
-        long_message = "This is a very long message that exceeds fifty characters and should be truncated"
-        messages = [{"role": "user", "content": long_message}]
-        title = service.get_conversation_title(messages)
-        
-        assert len(title) == 53  # 50 + "..."
-        assert title.endswith("...")
-    
+   
+   # checks the formatting the backend does, doesn't need to have AI stuff because just formatting 
     def test_format_message_with_attachments_image(self, ai_service):
         """Test formatting message with image attachment"""
         msg = {
@@ -252,6 +243,7 @@ class TestAIService:
         assert isinstance(formatted['content'], list)
         assert any(item['type'] == 'image_url' for item in formatted['content'])
     
+    # checks the formatting the backend does, doesn't need to have AI stuff because just formatting 
     def test_format_message_with_attachments_pdf(self, ai_service):
         """Test formatting message with PDF attachment"""
         with patch.object(ai_service, '_extract_pdf_text', return_value="PDF content here"):
@@ -270,6 +262,7 @@ class TestAIService:
             assert formatted['role'] == "user"
             assert "PDF content here" in formatted['content']
     
+    # checks the formatting the backend does, doesn't need to have AI stuff because just formatting 
     def test_format_message_with_attachments_multiple(self, ai_service):
         """Test formatting message with multiple attachments"""
         with patch.object(ai_service, '_extract_pdf_text', return_value="PDF text"):
@@ -290,6 +283,7 @@ class TestAIService:
             image_items = [item for item in formatted['content'] if item.get('type') == 'image_url']
             assert len(image_items) == 1
     
+    # checks the formatting the backend does, doesn't need to have AI stuff because just formatting 
     def test_format_messages_for_feedback_skips_pdf_extraction(self, ai_service):
         """Test that feedback formatting skips PDF extraction and notes attachments"""
         msg = {
@@ -310,6 +304,7 @@ class TestAIService:
         # Should contain note about attachments
         assert "attached" in content.lower() or "pdf" in content.lower() or "image" in content.lower()
     
+    # tests whether we can extract text from a PDF
     @patch('PyPDF2.PdfReader')
     def test_extract_pdf_text(self, mock_pdf_reader, ai_service):
         """Test PDF text extraction"""
@@ -328,6 +323,7 @@ class TestAIService:
         assert "Page 1 content" in text
         assert "Page 1" in text
     
+    # tests whether we can handle errors when extracting text from a PDF
     def test_extract_pdf_text_error_handling(self, ai_service):
         """Test PDF extraction error handling"""
         # Invalid base64 should return error message

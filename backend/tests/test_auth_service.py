@@ -41,7 +41,8 @@ class TestAuthService:
         mock_response.raise_for_status = Mock()
         mock_requests_get.return_value = mock_response
         
-        # Mock JWT header
+        # Mock JWT header so when public key is requested, it returns the test-kid
+        # kid = key id
         mock_jwt_header.return_value = {"kid": "test-kid"}
         
         # Test
@@ -132,8 +133,7 @@ class TestAuthService:
         
         with app.test_client() as client:
             response = client.get('/test', headers={'Authorization': 'Bearer valid-token'})
-            # Note: This will still fail because require_auth uses the global instance
-            # In real tests, you'd need to patch the global instance
+            # This will still fail because require_auth uses the global instance
             assert response.status_code in [200, 401]  # Depends on how decorator is set up
     
     @patch('auth_service.requests.get')
@@ -184,6 +184,7 @@ class TestAuthService:
         # Mock /userinfo response
         mock_userinfo_response = Mock()
         mock_userinfo_response.status_code = 200
+        # it needs to get it from this
         mock_userinfo_response.json.return_value = {"email": "test@example.com", "sub": "auth0|123", "name": "Test User", "picture": None}
         
         # Mock verify_token to return the payload (so we skip the actual verification)

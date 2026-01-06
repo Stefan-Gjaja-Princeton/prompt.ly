@@ -19,7 +19,7 @@ def test_db(monkeypatch):
     import tempfile
     import os
     
-    # Use a temporary file instead of :memory: to ensure persistence across connections
+    # Use a temporary file instead of :memory: to not affect the underlying DB
     # But delete it after tests
     temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
     temp_db_path = temp_db.name
@@ -29,15 +29,15 @@ def test_db(monkeypatch):
         # Force SQLite for testing
         monkeypatch.setenv('DATABASE_URL', '')
         
-        # Patch USE_POSTGRES to False BEFORE creating Database
+        # Patch USE_POSTGRES to False BEFORE creating Database because I'm using SQLite
         import database
         monkeypatch.setattr(database, 'USE_POSTGRES', False)
         monkeypatch.setattr(database, 'DATABASE_URL', '')
         
-        # Create database instance - this should call init_database()
+
         db = Database(db_path=temp_db_path)
         
-        # Verify tables exist by trying to query them
+        # make sure tables exist by trying to query them
         conn = db._get_connection()
         try:
             cursor = conn.cursor()
@@ -88,6 +88,7 @@ def test_db(monkeypatch):
         except:
             pass
 
+# all just template data for testing
 @pytest.fixture
 def sample_user_email():
     """Sample user email for testing"""

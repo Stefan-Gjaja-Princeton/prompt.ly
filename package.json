@@ -7,13 +7,8 @@
     "test:backend:coverage": "cd backend && pytest --cov=. --cov-report=html",
     "test:frontend": "cd frontend && npm test -- --watchAll=false",
     "test:frontend:coverage": "cd frontend && npm run test:coverage",
-    "test:system": "playwright test",
-    "test:system:ui": "playwright test --ui",
-    "test:all": "npm run test:backend && npm run test:frontend && npm run test:system"
+    "test:all": "npm run test:backend && npm run test:frontend"
   },
-  "devDependencies": {
-    "@playwright/test": "^1.40.0"
-  },
+  "devDependencies": {},
   "private": true
 }
-

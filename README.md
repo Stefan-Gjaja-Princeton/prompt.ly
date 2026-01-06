@@ -37,3 +37,7 @@ I am currently running a study to determine if this tool is effective. The forma
 ## Use of AI Disclosure
 
 As I explained in genai_usage_disclosure.md, I marked in the code where I used Cursor, which was the only GenAI tool I used in coding this project. As my writeup describes, I allowed participants in my psychological study's LLM group to use an LLM of their choice. I will also add that the directory structure was also recommended by Cursor - couldn't put that in a specific area in the code.
+
+## Testing information
+
+You can find the testing information (how to test and what the tests cover) in how_to_test.md.

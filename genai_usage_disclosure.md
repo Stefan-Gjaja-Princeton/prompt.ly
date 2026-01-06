@@ -1,1 +1,1 @@
-I marked in the code where I used Cursor, which was the only GenAI tool I used in this project. I will also add that the directory structure was also recommended by Cursor - couldn't put that in a specific area in the code.
+I marked in the code where I used Cursor, which was the only GenAI tool I used in this project. I will also add that the directory structure was also recommended by Cursor, as were all the .json files - couldn't put that in a specific area in the code.
