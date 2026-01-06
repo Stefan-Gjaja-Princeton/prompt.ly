@@ -1,0 +1,267 @@
+/**
+ * Unit tests for API service
+ */
+// Mock axios before importing
+jest.mock('axios', () => {
+  const mockAxios = jest.fn(() => Promise.resolve({ data: {} }));
+  mockAxios.create = jest.fn(() => ({
+    get: jest.fn(() => Promise.resolve({ data: {} })),
+    post: jest.fn(() => Promise.resolve({ data: {} })),
+    delete: jest.fn(() => Promise.resolve({ data: {} })),
+    interceptors: {
+      request: {
+        use: jest.fn(),
+      },
+      response: {
+        use: jest.fn(),
+      },
+    },
+  }));
+  mockAxios.get = jest.fn(() => Promise.resolve({ data: {} }));
+  mockAxios.post = jest.fn(() => Promise.resolve({ data: {} }));
+  mockAxios.delete = jest.fn(() => Promise.resolve({ data: {} }));
+  return {
+    __esModule: true,
+    default: mockAxios,
+  };
+});
+
+import axios from 'axios';
+import { createApiService } from '../../services/apiService';
+
+const mockedAxios = axios;
+
+describe('createApiService', () => {
+  let getAccessTokenSilently;
+  let apiService;
+  let mockAxiosInstance;
+
+  beforeEach(() => {
+    getAccessTokenSilently = jest.fn().mockResolvedValue('test-token');
+    
+    mockAxiosInstance = {
+      get: jest.fn(),
+      post: jest.fn(),
+      delete: jest.fn(),
+      interceptors: {
+        request: {
+          use: jest.fn(),
+        },
+        response: {
+          use: jest.fn(),
+        },
+      },
+    };
+
+    mockedAxios.create.mockReturnValue(mockAxiosInstance);
+    apiService = createApiService(getAccessTokenSilently);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should create axios instance with correct base URL', () => {
+    expect(mockedAxios.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseURL: expect.stringContaining('/api'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 60000,
+      })
+    );
+  });
+
+  it('should set up request interceptor to add auth token', () => {
+    expect(mockAxiosInstance.interceptors.request.use).toHaveBeenCalled();
+    const interceptor = mockAxiosInstance.interceptors.request.use.mock.calls[0][0];
+    
+    // Test interceptor function
+    const config = { headers: {} };
+    interceptor(config);
+    
+    expect(getAccessTokenSilently).toHaveBeenCalled();
+  });
+
+  describe('getConversations', () => {
+    it('should make GET request to /conversations', async () => {
+      const mockData = [{ conversation_id: '1', title: 'Test' }];
+      mockAxiosInstance.get.mockResolvedValue({ data: mockData });
+
+      const result = await apiService.getConversations();
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/conversations', { params: {} });
+      expect(result).toEqual(mockData);
+    });
+
+    it('should include limit and offset in params', async () => {
+      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+
+      await apiService.getConversations(10, 5);
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/conversations', {
+        params: { limit: 10, offset: 5 },
+      });
+    });
+  });
+
+  describe('getConversation', () => {
+    it('should make GET request to /conversations/:id', async () => {
+      const mockData = { conversation_id: '1', messages: [] };
+      mockAxiosInstance.get.mockResolvedValue({ data: mockData });
+
+      const result = await apiService.getConversation('conv-123');
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/conversations/conv-123', {
+        params: {},
+      });
+      expect(result).toEqual(mockData);
+    });
+
+    it('should include limit_messages in params if provided', async () => {
+      mockAxiosInstance.get.mockResolvedValue({ data: {} });
+
+      await apiService.getConversation('conv-123', 10);
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/conversations/conv-123', {
+        params: { limit_messages: 10 },
+      });
+    });
+  });
+
+  describe('sendMessage', () => {
+    it('should make POST request with message and files', async () => {
+      const mockData = { feedback_ready: true, quality_score: 7.5 };
+      mockAxiosInstance.post.mockResolvedValue({ data: mockData });
+
+      const fileAttachments = [{ filename: 'test.jpg', file_type: 'image/jpeg', data: 'base64' }];
+
+      const result = await apiService.sendMessage('conv-123', 'Hello', fileAttachments, null);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/conversations/conv-123/messages',
+        {
+          message: 'Hello',
+          file_attachments: fileAttachments,
+        },
+        { signal: null }
+      );
+      expect(result).toEqual(mockData);
+    });
+
+    it('should pass AbortController signal if provided', async () => {
+      const abortController = new AbortController();
+      mockAxiosInstance.post.mockResolvedValue({ data: {} });
+
+      await apiService.sendMessage('conv-123', 'Test', null, abortController.signal);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/conversations/conv-123/messages',
+        { message: 'Test' },
+        { signal: abortController.signal }
+      );
+    });
+  });
+
+  describe('getAIResponse', () => {
+    it('should handle SSE streaming response', async () => {
+      const textEncoder = new TextEncoder();
+      const mockChunks = [
+        'data: {"chunk":"Hello"}\n\n',
+        'data: {"chunk":" world"}\n\n',
+        'data: {"done":true,"full_response":"Hello world"}\n\n',
+      ];
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: jest.fn().mockReturnValue({
+            read: jest.fn()
+              .mockResolvedValueOnce({ done: false, value: textEncoder.encode(mockChunks[0]) })
+              .mockResolvedValueOnce({ done: false, value: textEncoder.encode(mockChunks[1]) })
+              .mockResolvedValueOnce({ done: false, value: textEncoder.encode(mockChunks[2]) })
+              .mockResolvedValueOnce({ done: true }),
+          }),
+        },
+      });
+
+      const chunks = [];
+      const onComplete = jest.fn();
+      await apiService.getAIResponse('conv-123', (chunk) => chunks.push(chunk), onComplete, () => {});
+
+      expect(chunks.length).toBeGreaterThan(0);
+    });
+
+    it('should pass AbortController signal to fetch', async () => {
+      const abortController = new AbortController();
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: jest.fn().mockReturnValue({
+            read: jest.fn().mockResolvedValue({ done: true }),
+          }),
+        },
+      });
+
+      await apiService.getAIResponse('conv-123', () => {}, () => {}, () => {}, abortController.signal);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/conversations/conv-123/response'),
+        expect.objectContaining({
+          signal: abortController.signal,
+        })
+      );
+    });
+
+    it('should call onError on fetch failure', async () => {
+      const onError = jest.fn();
+      global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
+
+      await apiService.getAIResponse('conv-123', () => {}, null, onError);
+
+      expect(onError).toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteConversation', () => {
+    it('should make DELETE request to /conversations/:id', async () => {
+      const mockData = { message: 'Deleted successfully' };
+      mockAxiosInstance.delete.mockResolvedValue({ data: mockData });
+
+      const result = await apiService.deleteConversation('conv-123');
+
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/conversations/conv-123');
+      expect(result).toEqual(mockData);
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle request timeout', async () => {
+      const error = { code: 'ECONNABORTED' };
+      mockAxiosInstance.get.mockRejectedValue(error);
+
+      await expect(apiService.getConversations()).rejects.toEqual(error);
+    });
+
+    it('should handle network errors', async () => {
+      const error = { message: 'Network Error' };
+      mockAxiosInstance.get.mockRejectedValue(error);
+
+      await expect(apiService.getConversations()).rejects.toEqual(error);
+    });
+
+    it('should handle API error responses', async () => {
+      const error = {
+        response: {
+          status: 404,
+          data: { error: 'Not found' },
+        },
+      };
+      mockAxiosInstance.get.mockRejectedValue(error);
+
+      await expect(apiService.getConversations()).rejects.toEqual(error);
+    });
+  });
+});
+

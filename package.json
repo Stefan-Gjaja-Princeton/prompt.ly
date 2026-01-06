@@ -1,0 +1,19 @@
+{
+  "name": "promptly-root",
+  "version": "1.0.0",
+  "description": "Root package.json for Prompt.ly testing infrastructure",
+  "scripts": {
+    "test:backend": "cd backend && pytest",
+    "test:backend:coverage": "cd backend && pytest --cov=. --cov-report=html",
+    "test:frontend": "cd frontend && npm test -- --watchAll=false",
+    "test:frontend:coverage": "cd frontend && npm run test:coverage",
+    "test:system": "playwright test",
+    "test:system:ui": "playwright test --ui",
+    "test:all": "npm run test:backend && npm run test:frontend && npm run test:system"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "private": true
+}
+

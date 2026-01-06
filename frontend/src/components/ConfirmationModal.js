@@ -25,10 +25,15 @@ const ConfirmationModal = ({
   };
 
   return (
-    <div className="confirmation-modal-overlay" onClick={handleOverlayClick}>
+    <div
+      className="confirmation-modal-overlay"
+      onClick={handleOverlayClick}
+      data-testid="confirmation-modal-overlay"
+    >
       <div
         className="confirmation-modal-content"
         onClick={(e) => e.stopPropagation()}
+        data-testid="confirmation-modal-content"
       >
         <div className="confirmation-modal-header">
           <div className="confirmation-modal-title">

@@ -142,4 +142,195 @@ class TestAIService:
         
         assert quality_score == 5.0  # Default fallback
         assert current_score == 5.0
+    
+    @patch('ai_service.openai.OpenAI')
+    def test_get_chat_response_stream(self, mock_openai_class, ai_service, sample_messages):
+        """Test streaming chat response"""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        
+        # Mock streaming response
+        mock_chunk1 = MagicMock()
+        mock_chunk1.choices = [MagicMock()]
+        mock_chunk1.choices[0].delta = MagicMock()
+        mock_chunk1.choices[0].delta.content = "Hello"
+        
+        mock_chunk2 = MagicMock()
+        mock_chunk2.choices = [MagicMock()]
+        mock_chunk2.choices[0].delta = MagicMock()
+        mock_chunk2.choices[0].delta.content = " world"
+        
+        mock_stream = [mock_chunk1, mock_chunk2]
+        mock_client.chat.completions.create.return_value = mock_stream
+        
+        service = AIService("test-key")
+        service.client = mock_client
+        
+        # Test streaming
+        chunks = list(service.get_chat_response_stream(sample_messages, 7.5))
+        
+        assert len(chunks) == 2
+        assert chunks[0] == "Hello"
+        assert chunks[1] == " world"
+        assert mock_client.chat.completions.create.called
+        # Verify stream=True was passed
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args[1]['stream'] is True
+        assert call_args[1]['temperature'] == 0.7
+    
+    @patch('ai_service.openai.OpenAI')
+    def test_get_conversation_title(self, mock_openai_class, ai_service):
+        """Test generating conversation title"""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = "Machine Learning Basics"
+        
+        mock_client.chat.completions.create.return_value = mock_response
+        
+        service = AIService("test-key")
+        service.client = mock_client
+        
+        messages = [{"role": "user", "content": "Explain machine learning"}]
+        title = service.get_conversation_title(messages)
+        
+        assert title == "Machine Learning Basics"
+        assert mock_client.chat.completions.create.called
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args[1]['temperature'] == 0.3
+    
+    @patch('ai_service.openai.OpenAI')
+    def test_get_conversation_title_fallback(self, mock_openai_class, ai_service):
+        """Test title generation fallback on error"""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+        
+        service = AIService("test-key")
+        service.client = mock_client
+        
+        messages = [{"role": "user", "content": "Short"}]
+        title = service.get_conversation_title(messages)
+        
+        assert title == "Short"  # Fallback to first message
+    
+    @patch('ai_service.openai.OpenAI')
+    def test_get_conversation_title_long_message(self, mock_openai_class, ai_service):
+        """Test title generation with long message fallback"""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+        
+        service = AIService("test-key")
+        service.client = mock_client
+        
+        long_message = "This is a very long message that exceeds fifty characters and should be truncated"
+        messages = [{"role": "user", "content": long_message}]
+        title = service.get_conversation_title(messages)
+        
+        assert len(title) == 53  # 50 + "..."
+        assert title.endswith("...")
+    
+    def test_format_message_with_attachments_image(self, ai_service):
+        """Test formatting message with image attachment"""
+        msg = {
+            "role": "user",
+            "content": "Look at this image",
+            "attachments": [{
+                "filename": "test.jpg",
+                "file_type": "image/jpeg",
+                "data": "base64imagedata"
+            }]
+        }
+        
+        formatted = ai_service._format_message_with_attachments(msg)
+        
+        assert formatted['role'] == "user"
+        assert isinstance(formatted['content'], list)
+        assert any(item['type'] == 'image_url' for item in formatted['content'])
+    
+    def test_format_message_with_attachments_pdf(self, ai_service):
+        """Test formatting message with PDF attachment"""
+        with patch.object(ai_service, '_extract_pdf_text', return_value="PDF content here"):
+            msg = {
+                "role": "user",
+                "content": "Read this PDF",
+                "attachments": [{
+                    "filename": "test.pdf",
+                    "file_type": "application/pdf",
+                    "data": "base64pdfdata"
+                }]
+            }
+            
+            formatted = ai_service._format_message_with_attachments(msg)
+            
+            assert formatted['role'] == "user"
+            assert "PDF content here" in formatted['content']
+    
+    def test_format_message_with_attachments_multiple(self, ai_service):
+        """Test formatting message with multiple attachments"""
+        with patch.object(ai_service, '_extract_pdf_text', return_value="PDF text"):
+            msg = {
+                "role": "user",
+                "content": "Check these files",
+                "attachments": [
+                    {"filename": "img.jpg", "file_type": "image/jpeg", "data": "imgdata"},
+                    {"filename": "doc.pdf", "file_type": "application/pdf", "data": "pdfdata"}
+                ]
+            }
+            
+            formatted = ai_service._format_message_with_attachments(msg)
+            
+            assert formatted['role'] == "user"
+            # Should have both image and PDF content
+            assert isinstance(formatted['content'], list)
+            image_items = [item for item in formatted['content'] if item.get('type') == 'image_url']
+            assert len(image_items) == 1
+    
+    def test_format_messages_for_feedback_skips_pdf_extraction(self, ai_service):
+        """Test that feedback formatting skips PDF extraction and notes attachments"""
+        msg = {
+            "role": "user",
+            "content": "Check this",
+            "attachments": [
+                {"filename": "img.jpg", "file_type": "image/jpeg"},
+                {"filename": "doc.pdf", "file_type": "application/pdf"}
+            ]
+        }
+        
+        formatted = ai_service._format_messages_for_feedback([msg])
+        
+        assert len(formatted) == 1
+        # Should note attachments but not extract PDF text
+        content = formatted[0].get('content', '')
+        assert isinstance(content, str)
+        # Should contain note about attachments
+        assert "attached" in content.lower() or "pdf" in content.lower() or "image" in content.lower()
+    
+    @patch('PyPDF2.PdfReader')
+    def test_extract_pdf_text(self, mock_pdf_reader, ai_service):
+        """Test PDF text extraction"""
+        import base64
+        
+        # Mock PDF reader
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = "Page 1 content"
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_pdf_reader.return_value = mock_reader
+        
+        pdf_base64 = base64.b64encode(b"fake pdf data").decode('utf-8')
+        text = ai_service._extract_pdf_text(pdf_base64)
+        
+        assert "Page 1 content" in text
+        assert "Page 1" in text
+    
+    def test_extract_pdf_text_error_handling(self, ai_service):
+        """Test PDF extraction error handling"""
+        # Invalid base64 should return error message
+        text = ai_service._extract_pdf_text("invalid-base64!!!")
+        assert "could not be extracted" in text or "error" in text.lower()
 

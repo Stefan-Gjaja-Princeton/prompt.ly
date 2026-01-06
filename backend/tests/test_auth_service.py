@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from flask import Flask
 from auth_service import AuthService, require_auth
+import requests
 
 class TestAuthService:
     """Test authentication service"""
@@ -134,4 +135,64 @@ class TestAuthService:
             # Note: This will still fail because require_auth uses the global instance
             # In real tests, you'd need to patch the global instance
             assert response.status_code in [200, 401]  # Depends on how decorator is set up
+    
+    @patch('auth_service.requests.get')
+    @patch('auth_service.jwt.decode')
+    @patch('auth_service.jwt.get_unverified_header')
+    def test_get_user_from_token_with_email(self, mock_jwt_header, mock_jwt_decode, mock_requests_get, auth_service):
+        """Test extracting user from token with email claim"""
+        mock_jwks = {"keys": [{"kid": "test-kid", "kty": "RSA", "use": "sig", "n": "test-n", "e": "test-e"}]}
+        mock_response = Mock()
+        mock_response.json.return_value = mock_jwks
+        mock_response.raise_for_status = Mock()
+        mock_requests_get.return_value = mock_response
+        
+        mock_jwt_header.return_value = {"kid": "test-kid"}
+        mock_payload = {
+            "sub": "auth0|123",
+            "email": "test@example.com",
+            "aud": "test-audience",
+            "iss": "https://test.auth0.com/"
+        }
+        mock_jwt_decode.return_value = mock_payload
+        
+        # Mock verify_token to return the payload
+        with patch.object(auth_service, 'verify_token', return_value=mock_payload):
+            user_data = auth_service.get_user_from_token("Bearer valid-token")
+            assert user_data is not None
+            assert user_data['email'] == "test@example.com"
+    
+    @patch('auth_service.requests.get')
+    @patch('auth_service.jwt.decode')
+    @patch('auth_service.jwt.get_unverified_header')
+    def test_get_user_from_token_fallback_to_userinfo(self, mock_jwt_header, mock_jwt_decode, mock_requests_get, auth_service):
+        """Test falling back to /userinfo when email not in token"""
+        mock_jwks = {"keys": [{"kid": "test-kid", "kty": "RSA", "use": "sig", "n": "test-n", "e": "test-e"}]}
+        mock_jwks_response = Mock()
+        mock_jwks_response.json.return_value = mock_jwks
+        mock_jwks_response.raise_for_status = Mock()
+        
+        mock_jwt_header.return_value = {"kid": "test-kid"}
+        # Token without email
+        mock_payload = {
+            "sub": "auth0|123",
+            "aud": "test-audience",
+            "iss": "https://test.auth0.com/"
+        }
+        mock_jwt_decode.return_value = mock_payload
+        
+        # Mock /userinfo response
+        mock_userinfo_response = Mock()
+        mock_userinfo_response.status_code = 200
+        mock_userinfo_response.json.return_value = {"email": "test@example.com", "sub": "auth0|123", "name": "Test User", "picture": None}
+        
+        # Mock verify_token to return the payload (so we skip the actual verification)
+        with patch.object(auth_service, 'verify_token', return_value=mock_payload):
+            # Mock requests.get for the userinfo call inside get_user_from_token
+            mock_requests_get.return_value = mock_userinfo_response
+            user_data = auth_service.get_user_from_token("Bearer valid-token")
+            assert user_data is not None
+            assert user_data['email'] == "test@example.com"
+            # Verify that requests.get was called (for userinfo)
+            assert mock_requests_get.called
 

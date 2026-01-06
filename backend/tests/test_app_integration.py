@@ -72,18 +72,21 @@ class TestAppIntegration:
         # Mock get_user_from_token to return user data
         mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
         
-        # Mock conversation
+        # Mock conversation - first call returns None (conversation doesn't exist), then returns conversation
         mock_conversation = {
             "conversation_id": "test-123",
             "messages": [],
             "quality_score": None,
             "message_scores": []
         }
-        mock_db.get_conversation.return_value = mock_conversation
+        mock_db.get_conversation.side_effect = [None, mock_conversation, mock_conversation]
+        mock_db.create_user.return_value = True
+        mock_db.create_conversation.return_value = True
         mock_db.update_conversation.return_value = True
         
         # Mock AI service
-        mock_ai_service.get_feedback_response.return_value = (7.5, "Good prompt!", 7.5)
+        mock_ai_service.get_feedback_response.return_value = (7.5, {"quality_label": "Good"}, 7.5)
+        mock_ai_service.get_conversation_title.return_value = "Test Title"
         
         response = client.post(
             '/api/conversations/test-123/messages',
@@ -99,7 +102,7 @@ class TestAppIntegration:
     @patch('app.ai_service')
     @patch('auth_service.auth_service')
     def test_get_ai_response(self, mock_auth_service, mock_ai_service, mock_db, client):
-        """Test getting AI response"""
+        """Test getting AI response (streaming)"""
         # Mock get_user_from_token to return user data
         mock_auth_service.get_user_from_token.return_value = {
             "email": "test@example.com",
@@ -117,20 +120,247 @@ class TestAppIntegration:
             "message_scores": [7.5]
         }
         mock_db.get_conversation.return_value = mock_conversation
+        mock_db.get_user_by_email.return_value = {"first_name": "Test"}
         mock_db.update_conversation.return_value = True
         
-        # Mock AI service
-        mock_ai_service.get_chat_response.return_value = "This is an AI response."
+        # Mock AI service streaming response
+        def mock_stream():
+            yield "This is an AI response."
+        
+        mock_ai_service.get_chat_response_stream.return_value = mock_stream()
         
         response = client.post('/api/conversations/test-123/response', headers={'Authorization': 'Bearer test-token'})
         assert response.status_code == 200
-        data = json.loads(response.data)
-        assert 'ai_response' in data
-        assert data['ai_response'] == "This is an AI response."
+        # Check that it's a streaming response
+        assert 'text/event-stream' in response.content_type
+        # Check that response contains the streamed content
+        assert b'data: ' in response.data or b'This is an AI response' in response.data
     
     def test_get_conversations_requires_auth(self, client):
         """Test that conversations endpoint requires authentication"""
         # Without auth, should return 401
         response = client.get('/api/conversations')
         assert response.status_code == 401
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_get_conversations(self, mock_auth_service, mock_db, client):
+        """Test getting all conversations for a user"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        
+        mock_conversations = [
+            {"conversation_id": "conv-1", "title": "Test 1", "message_count": 5, "updated_at": "2024-01-01"},
+            {"conversation_id": "conv-2", "title": "Test 2", "message_count": 3, "updated_at": "2024-01-02"}
+        ]
+        mock_db.get_user_conversation_summaries.return_value = mock_conversations
+        
+        response = client.get('/api/conversations', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_get_conversation(self, mock_auth_service, mock_db, client):
+        """Test getting a specific conversation"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        
+        mock_conversation = {
+            "conversation_id": "test-123",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "quality_score": 7.5,
+            "feedback": "Good prompt"
+        }
+        mock_db.get_conversation.return_value = mock_conversation
+        
+        response = client.get('/api/conversations/test-123', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['conversation_id'] == "test-123"
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_get_conversation_not_found(self, mock_auth_service, mock_db, client):
+        """Test getting non-existent conversation"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        mock_db.get_conversation.return_value = None
+        
+        response = client.get('/api/conversations/nonexistent', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 404
+    
+    @patch('app.db')
+    @patch('app.ai_service')
+    @patch('auth_service.auth_service')
+    def test_send_message_with_file_attachments(self, mock_auth_service, mock_ai_service, mock_db, client):
+        """Test sending message with file attachments"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        
+        mock_conversation = {
+            "conversation_id": "test-123",
+            "messages": [],
+            "quality_score": None,
+            "message_scores": []
+        }
+        mock_db.get_conversation.side_effect = [None, mock_conversation, mock_conversation]
+        mock_db.create_user.return_value = True
+        mock_db.create_conversation.return_value = True
+        mock_db.update_conversation.return_value = True
+        mock_ai_service.get_feedback_response.return_value = (7.5, {"quality_label": "Good"}, 7.5)
+        mock_ai_service.get_conversation_title.return_value = "Test Title"
+        
+        payload = {
+            "message": "Check this image",
+            "file_attachments": [
+                {"filename": "test.jpg", "file_type": "image/jpeg", "data": "base64data"}
+            ]
+        }
+        
+        response = client.post(
+            '/api/conversations/test-123/messages',
+            json=payload,
+            headers={'Authorization': 'Bearer test-token'}
+        )
+        assert response.status_code == 200
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_send_message_file_validation(self, mock_auth_service, mock_db, client):
+        """Test file attachment validation"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        
+        # Test invalid file type
+        payload = {
+            "message": "Check this",
+            "file_attachments": [
+                {"filename": "test.exe", "file_type": "application/exe", "data": "data"}
+            ]
+        }
+        
+        response = client.post(
+            '/api/conversations/test-123/messages',
+            json=payload,
+            headers={'Authorization': 'Bearer test-token'}
+        )
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "not supported" in data['error'].lower() or "only image" in data['error'].lower()
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_send_message_max_files(self, mock_auth_service, mock_db, client):
+        """Test maximum file attachment limit"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        
+        # Test more than 3 files
+        payload = {
+            "message": "Check these",
+            "file_attachments": [
+                {"filename": "1.jpg", "file_type": "image/jpeg", "data": "data1"},
+                {"filename": "2.jpg", "file_type": "image/jpeg", "data": "data2"},
+                {"filename": "3.jpg", "file_type": "image/jpeg", "data": "data3"},
+                {"filename": "4.jpg", "file_type": "image/jpeg", "data": "data4"}
+            ]
+        }
+        
+        response = client.post(
+            '/api/conversations/test-123/messages',
+            json=payload,
+            headers={'Authorization': 'Bearer test-token'}
+        )
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "maximum" in data['error'].lower() or "3" in data['error']
+    
+    @patch('app.db')
+    @patch('app.ai_service')
+    @patch('auth_service.auth_service')
+    def test_send_message_message_limit(self, mock_auth_service, mock_ai_service, mock_db, client):
+        """Test 20 message limit enforcement"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        
+        # Create conversation with 20 user messages
+        messages = []
+        for i in range(20):
+            messages.append({"role": "user", "content": f"Message {i}"})
+            messages.append({"role": "assistant", "content": f"Response {i}"})
+        
+        mock_conversation = {
+            "conversation_id": "test-123",
+            "user_email": "test@example.com",  # Important: must match the user email
+            "messages": messages,
+            "quality_score": 7.5,
+            "message_scores": [7.5] * 20
+        }
+        mock_db.get_conversation.return_value = mock_conversation
+        mock_db.create_user.return_value = True
+        mock_ai_service.get_conversation_title.return_value = "Test Title"
+        
+        response = client.post(
+            '/api/conversations/test-123/messages',
+            json={"message": "Another message"},
+            headers={'Authorization': 'Bearer test-token'}
+        )
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "limit" in data['error'].lower() or "20" in data['error']
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_delete_conversation(self, mock_auth_service, mock_db, client):
+        """Test deleting a conversation"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        mock_db.delete_conversation.return_value = True
+        
+        response = client.delete('/api/conversations/test-123', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "deleted" in data['message'].lower()
+    
+    @patch('app.db')
+    @patch('auth_service.auth_service')
+    def test_delete_conversation_not_found(self, mock_auth_service, mock_db, client):
+        """Test deleting non-existent conversation"""
+        mock_auth_service.get_user_from_token.return_value = {"email": "test@example.com"}
+        mock_db.delete_conversation.return_value = False
+        
+        response = client.delete('/api/conversations/nonexistent', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 404
+    
+    @patch('app.db')
+    @patch('app.ai_service')
+    @patch('auth_service.auth_service')
+    def test_get_ai_response_streaming(self, mock_auth_service, mock_ai_service, mock_db, client):
+        """Test streaming AI response (SSE format)"""
+        mock_auth_service.get_user_from_token.return_value = {
+            "email": "test@example.com",
+            "name": ["Test"],
+            "nickname": "testuser"
+        }
+        
+        mock_conversation = {
+            "conversation_id": "test-123",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "quality_score": 7.5,
+            "message_scores": [7.5]
+        }
+        mock_db.get_conversation.return_value = mock_conversation
+        mock_db.get_user_by_email.return_value = {"first_name": "Test"}
+        mock_db.update_conversation.return_value = True
+        
+        # Mock streaming response
+        def mock_stream():
+            yield "Hello"
+            yield " world"
+            yield "!"
+        
+        mock_ai_service.get_chat_response_stream.return_value = mock_stream()
+        
+        response = client.post('/api/conversations/test-123/response', headers={'Authorization': 'Bearer test-token'})
+        assert response.status_code == 200
+        # Content type may include charset, so check if it contains 'text/event-stream'
+        assert 'text/event-stream' in response.content_type
+        
+        # Check SSE format
+        data = response.data.decode('utf-8')
+        assert 'data: ' in data
 
