@@ -26,7 +26,7 @@ class TestAuthService:
     @patch('auth_service.jwt.get_unverified_header')
     def test_get_public_key(self, mock_jwt_header, mock_requests_get, auth_service):
         """Test getting public key from Auth0"""
-        # Mock JWKS response
+        # Mock JWKS response whenever the public key is requested
         mock_jwks = {
             "keys": [{
                 "kid": "test-kid",
@@ -75,7 +75,7 @@ class TestAuthService:
         }
         mock_jwt_decode.return_value = mock_payload
         
-        # Test
+        # Test to make sure that that the verify_token function returns the correct payload
         payload = auth_service.verify_token("valid-token")
         
         assert payload is not None
@@ -94,7 +94,7 @@ class TestAuthService:
         
         mock_jwt_header.return_value = {"kid": "test-kid"}
         
-        # Mock jwt.decode to raise exception
+        # Mock jwt.decode to raise exception if the token is invalid
         with patch('auth_service.jwt.decode', side_effect=Exception("Invalid token")):
             payload = auth_service.verify_token("invalid-token")
             assert payload is None
@@ -103,6 +103,7 @@ class TestAuthService:
         """Test require_auth decorator with no token"""
         app = Flask(__name__)
         
+        // this is a mini Flask app that is used to test the require_auth decorator
         @app.route('/test')
         @require_auth
         def protected_route():
@@ -125,6 +126,7 @@ class TestAuthService:
         }
         mock_auth_service_class.return_value = mock_auth_service
         
+        // this is a mini Flask app that is used to test the require_auth decorator
         @app.route('/test')
         @require_auth
         def protected_route():
@@ -136,6 +138,7 @@ class TestAuthService:
             # This will still fail because require_auth uses the global instance
             assert response.status_code in [200, 401]  # Depends on how decorator is set up
     
+    # this tests when the JWT has the email, can we get it from the token?
     @patch('auth_service.requests.get')
     @patch('auth_service.jwt.decode')
     @patch('auth_service.jwt.get_unverified_header')
@@ -162,6 +165,7 @@ class TestAuthService:
             assert user_data is not None
             assert user_data['email'] == "test@example.com"
     
+    # this tests when the JWT doesn't have the email, can we get it from the /userinfo endpoint?
     @patch('auth_service.requests.get')
     @patch('auth_service.jwt.decode')
     @patch('auth_service.jwt.get_unverified_header')

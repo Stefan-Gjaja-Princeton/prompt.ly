@@ -20,12 +20,14 @@ class TestDatabase:
         assert user is not None
         assert user['email'] == sample_user_email
     
+    # this should work totally fine
     def test_create_user_duplicate(self, test_db, sample_user_email):
         """Test creating duplicate user (should be idempotent)"""
         test_db.create_user(sample_user_email)
         result = test_db.create_user(sample_user_email)  # Try again
         assert result is True  # Should succeed (idempotent)
     
+    # Nothing should come up when user not in db 
     def test_get_user_by_email_not_found(self, test_db):
         """Test getting non-existent user"""
         user = test_db.get_user_by_email("nonexistent@example.com")
@@ -40,7 +42,7 @@ class TestDatabase:
         result = test_db.create_conversation(sample_user_email, sample_conversation_id)
         assert result is True
         
-        # Verify conversation exists
+        # Verify conversation exists - this means it has gone through
         conversation = test_db.get_conversation(sample_conversation_id)
         assert conversation is not None
         assert conversation['conversation_id'] == sample_conversation_id
@@ -51,6 +53,7 @@ class TestDatabase:
         conversation = test_db.get_conversation("nonexistent-id")
         assert conversation is None
     
+    # updating convo that already exists in db
     def test_update_conversation(self, test_db, sample_user_email, sample_conversation_id, sample_messages):
         """Test updating conversation with messages and scores"""
         # Setup: create user and conversation
@@ -91,6 +94,7 @@ class TestDatabase:
         assert "conv-1" in conv_ids
         assert "conv-2" in conv_ids
     
+    # this is used by the left panel
     def test_get_conversation_summary(self, test_db, sample_user_email, sample_conversation_id):
         """Test getting conversation summary via get_user_conversation_summaries"""
         # Setup
@@ -104,6 +108,7 @@ class TestDatabase:
         assert 'conversation_id' in summary
         assert 'updated_at' in summary
     
+    # new functionality that we need to test
     def test_delete_conversation(self, test_db, sample_user_email, sample_conversation_id):
         """Test deleting a conversation"""
         # Setup: create user and conversation
@@ -122,6 +127,7 @@ class TestDatabase:
         conversation = test_db.get_conversation(sample_conversation_id)
         assert conversation is None
     
+    # if for some reason the request is sent mistakenly from a different user it shouldn't work
     def test_delete_conversation_wrong_user(self, test_db, sample_user_email, sample_conversation_id):
         """Test deleting a conversation belonging to another user fails"""
         # Setup: create user and conversation
@@ -171,6 +177,7 @@ class TestDatabase:
         assert conv1['message_count'] == 2
         assert conv1['title'] == "Test Title"
     
+    # didn't end up using this but worth testing in case I change my mind (if I want leftside panel to have a pagination)
     def test_get_user_conversation_summaries_with_limit(self, test_db, sample_user_email):
         """Test getting conversation summaries with limit"""
         test_db.create_user(sample_user_email)
@@ -189,6 +196,7 @@ class TestDatabase:
         summaries = test_db.get_user_conversation_summaries(sample_user_email, limit=2, offset=2)
         assert len(summaries) == 2
     
+    # also if I decided to paginate the messages in the chat window, this would be useful
     def test_get_conversation_with_limit_messages(self, test_db, sample_user_email, sample_conversation_id):
         """Test getting conversation with message limit"""
         test_db.create_user(sample_user_email)
@@ -200,6 +208,7 @@ class TestDatabase:
             messages.append({"role": "user", "content": f"Message {i}", "timestamp": f"2024-01-01T00:00:{i:02d}"})
             messages.append({"role": "assistant", "content": f"Response {i}", "timestamp": f"2024-01-01T00:00:{i+1:02d}"})
         
+        # gives scores, feedback, etc
         test_db.update_conversation(sample_conversation_id, messages, 7.5, [7.5] * 10, "Feedback")
         
         # Get conversation with limit
@@ -228,6 +237,7 @@ class TestDatabase:
         assert user['google_id'] == "google-123"
         assert user['profile_picture_url'] == "https://example.com/pic.jpg"
     
+    # doesn't actually check if the timestamp is updated just that things don't break - I know the timestamp is updated
     def test_update_user_login(self, test_db, sample_user_email):
         """Test updating user last login timestamp"""
         test_db.create_user(sample_user_email)
@@ -245,9 +255,6 @@ class TestDatabase:
         # Check that last_login exists and update_user_login completed successfully
         assert user_after is not None
         assert user_after['last_login'] is not None
-        # For SQLite, timestamps might be identical if the update happens in the same second
-        # The important thing is that the function was called without error
-        # In a real scenario with more time between calls, the timestamp would be different
     
     def test_update_conversation_with_title(self, test_db, sample_user_email, sample_conversation_id, sample_messages):
         """Test updating conversation with title"""
