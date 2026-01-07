@@ -12,11 +12,14 @@ Just go to https://promptly-frontend-dcbp.onrender.com/ - all the work is done f
 
 **The Harder Way**
 
-1. From the root of the directory, run: `bash pip install -r requirements.txt `
-2. Run: `bash npm install`
-3. In one terminal window, run: `bash ./start_backend.sh `
-4. In another terminal window, run: `bash ./start_frontend.sh `
-5. If your browser does not automatically open, navigate to http://localhost:3000
+From the root directory, do this:
+
+1. Install Python dependencies: `pip install -r backend/requirements.txt`
+2. Install Node dependencies: `cd frontend && npm install`
+3. Run `cd ..` just to get back to root directory
+4. In one terminal window, run: `bash ./start_backend.sh `
+5. In another terminal window, run: `bash ./start_frontend.sh `
+6. If your browser does not automatically open, navigate to http://localhost:3000
 
 ## Usage Examples
 
