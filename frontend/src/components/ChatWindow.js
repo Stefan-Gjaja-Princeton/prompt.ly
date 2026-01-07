@@ -147,7 +147,19 @@ const ChatWindow = ({
 
   // handles the message itself
   const handleInputChange = (e) => {
-    setInputMessage(e.target.value);
+    const MAX_MESSAGE_LENGTH = 25000;
+    const newValue = e.target.value;
+    
+    // Prevent typing beyond the limit
+    if (newValue.length > MAX_MESSAGE_LENGTH) {
+      // Show notification when limit is reached
+      showNotification("Message limit reached (25,000 characters)");
+      // Truncate to max length
+      e.target.value = newValue.substring(0, MAX_MESSAGE_LENGTH);
+      setInputMessage(newValue.substring(0, MAX_MESSAGE_LENGTH));
+    } else {
+      setInputMessage(newValue);
+    }
 
     // Auto-resize textarea if the user types enough
     const textarea = e.target;
@@ -160,6 +172,21 @@ const ChatWindow = ({
       textarea.style.overflowY = "auto";
     } else {
       textarea.style.overflowY = "hidden";
+    }
+  };
+
+  // Handle paste events to show notification if pasted content exceeds limit
+  const handlePaste = (e) => {
+    const MAX_MESSAGE_LENGTH = 25000;
+    const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+    const currentLength = inputMessage.length;
+    const wouldExceed = currentLength + pastedText.length > MAX_MESSAGE_LENGTH;
+    
+    if (wouldExceed) {
+      // Show notification after a brief delay to allow the paste to complete
+      setTimeout(() => {
+        showNotification("Message limit reached (25,000 characters)");
+      }, 10);
     }
   };
 
@@ -555,9 +582,11 @@ const ChatWindow = ({
               onChange={handleInputChange}
               onKeyPress={handleKeyPress}
               onFocus={handleInputFocus}
+              onPaste={handlePaste}
               placeholder="Type your message here..."
               className="message-input"
               rows="1"
+              maxLength={25000}
             />
             <button
               type="submit"

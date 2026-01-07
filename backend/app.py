@@ -274,6 +274,15 @@ def send_message(conversation_id):
     try:
         data = request.get_json()
         user_message = data.get('message', '') if data else ''
+        
+        # Validate message length
+        MAX_MESSAGE_LENGTH = 25000
+        if len(user_message) > MAX_MESSAGE_LENGTH:
+            return jsonify({
+                "error": "Message too long",
+                "message": f"Message must be {MAX_MESSAGE_LENGTH:,} characters or less. Your message is {len(user_message):,} characters."
+            }), 400
+        
         # Support both old format (file_attachment) and new format (file_attachments array)
         file_attachment = data.get('file_attachment', None) if data else None
         file_attachments = data.get('file_attachments', None) if data else None
