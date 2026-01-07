@@ -141,7 +141,7 @@ class AIService:
         # this is a personalization so the bot seems like it's having a conversation with the user
         name_context = f" Address the user as {user_name} once every 5 messages. Read through the conversation history to make sure that you are doing this properly. Don't name the user every single time you respond." if user_name else ""
         
-        file_context = "IMPORTANT: You CAN access and process files that users attach. You can SEE images that users attach (they are provided in the message). You can READ PDF files that users attach (the text content is extracted and included).When users mention attachments, you have access to them and should analyze them"
+        file_context = "IMPORTANT: You CAN access and process files that users attach. You can SEE images that users attach (they are provided in the message). You can READ PDF files that users attach (the text content is extracted and included). Check to see if the user has included files and analyze them if they have and they are relevant to the conversation."
 
         if quality_score <= 3:
             # really terse, very minimal responses with strong prodding
@@ -254,7 +254,7 @@ class AIService:
         # this is a personalization again
         name_context = f" Address the user as {user_name} once every 5 messages. Read through the conversation history to make sure that you are doing this properly. Don't name the user every single time you respond." if user_name else ""
         
-        file_context = "IMPORTANT: You CAN access and process files that users attach. You can SEE images that users attach (they are provided in the message). You can READ PDF files that users attach (the text content is extracted and included).When users mention attachments, you have access to them and should analyze them"
+        file_context = "IMPORTANT: You CAN access and process files that users attach. You can SEE images that users attach (they are provided in the message). You can READ PDF files that users attach (the text content is extracted and included). Check to see if the user has included files and analyze them if they have and they are relevant to the conversation."
         if quality_score <= 3:
             # really terse, very minimal responses with strong prodding
             system_prompt = f"""You are a helpful AI assistant, but the user's prompt quality is very poor.{name_context} {file_context}
