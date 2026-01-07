@@ -42,3 +42,7 @@ As I explained in genai_usage_disclosure.md, I marked in the code at the top of 
 ## Testing information
 
 You can find the testing information (how to test and what the tests cover) in how_to_test.md.
+
+## Design decisions
+
+You can find info about my design decisions in design_decisions.md.
