@@ -27,11 +27,12 @@ const TUTORIAL_SLIDES = [
         <p>The feedback panel on the right shows:</p>
         <ul>
           <li>
-            <strong>Quality Score:</strong> How well-written your prompt is
+            <strong>Prompt Score:</strong> How well-written your prompt is
             (0-10)
           </li>
           <li>
-            <strong>Feedback:</strong> Specific suggestions for improvement
+            <strong>Improvement Tips:</strong> Specific suggestions for
+            improvement
           </li>
           <li>
             <strong>Example Improved Prompt:</strong> An example of an improved
@@ -42,7 +43,7 @@ const TUTORIAL_SLIDES = [
     ),
   },
   {
-    title: "Quality Scores",
+    title: "Prompt Scores",
     content: (
       <div>
         <p>Scores below 5 result in shorter, more direct responses.</p>
