@@ -147,6 +147,15 @@
   border-left-color: #007bff;
 }
 
+.conversation-item.streaming-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.conversation-item.streaming-disabled:hover {
+  background-color: inherit;
+}
+
 .conversation-content {
   display: flex;
   flex-direction: column;
@@ -210,6 +219,50 @@
 
 .delete-conversation-btn:active {
   transform: scale(0.95);
+}
+
+.delete-conversation-btn.disabled,
+.delete-conversation-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Mouse-following tooltip for streaming state */
+.streaming-tooltip-follow {
+  position: fixed;
+  background-color: #333;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 10000;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transform: translate(-50%, calc(-100% - 12px));
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+.streaming-tooltip-follow::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #333;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 8px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, calc(-100% - 12px));
+  }
 }
 
 /* Responsive design */

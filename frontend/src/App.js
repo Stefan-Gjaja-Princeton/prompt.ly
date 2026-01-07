@@ -510,6 +510,13 @@ function App() {
     }
   };
 
+  // Check if response is being generated (from when user sends message until response completes)
+  const isStreaming = useMemo(() => {
+    // Disable navigation as soon as user sends a message (loading becomes true)
+    // and keep it disabled until response completes (loading becomes false)
+    return loading;
+  }, [loading]);
+
   const selectConversation = (conversationId) => {
     setCurrentConversationId(conversationId);
   };
@@ -643,6 +650,7 @@ function App() {
           onDeleteConversation={handleDeleteClick}
           loading={conversationsLoading}
           isNewConversation={messages.length === 0}
+          isStreaming={isStreaming}
         />
 
         <ChatWindow
