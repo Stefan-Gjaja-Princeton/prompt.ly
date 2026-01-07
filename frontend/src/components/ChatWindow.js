@@ -149,7 +149,7 @@ const ChatWindow = ({
   const handleInputChange = (e) => {
     const MAX_MESSAGE_LENGTH = 25000;
     const newValue = e.target.value;
-    
+
     // Prevent typing beyond the limit
     if (newValue.length > MAX_MESSAGE_LENGTH) {
       // Show notification when limit is reached
@@ -178,10 +178,12 @@ const ChatWindow = ({
   // Handle paste events to show notification if pasted content exceeds limit
   const handlePaste = (e) => {
     const MAX_MESSAGE_LENGTH = 25000;
-    const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+    const pastedText = (e.clipboardData || window.clipboardData).getData(
+      "text"
+    );
     const currentLength = inputMessage.length;
     const wouldExceed = currentLength + pastedText.length > MAX_MESSAGE_LENGTH;
-    
+
     if (wouldExceed) {
       // Show notification after a brief delay to allow the paste to complete
       setTimeout(() => {
@@ -599,7 +601,7 @@ const ChatWindow = ({
             </button>
           </div>
           <div className="input-disclaimer">
-            prompt.ly can make mistakes. Check important info.
+            prompt.ly can make mistakes, so verify important info.
           </div>
         </form>
       )}
