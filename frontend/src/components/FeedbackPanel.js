@@ -193,13 +193,13 @@ const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
               onClick={closeInfo}
               aria-label="Close prompt scoring information"
             >
-              ×
+              x
             </button>
             <h3>How prompt scoring works</h3>
             <p>prompt.ly scores your prompt using 4 criteria:</p>
             <ul className="feedback-info-list">
               <li>
-                <strong>Specificity</strong> – How specific and detailed is your
+                <strong>Specificity</strong> - How specific and detailed is your
                 request?
                 <br />
                 <span className="feedback-info-good">
@@ -213,7 +213,7 @@ const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
                 </span>
               </li>
               <li>
-                <strong>Critical Thinking</strong> – Does your prompt involve
+                <strong>Critical Thinking</strong> - Does your prompt involve
                 analysis or reasoning, instead of just asking for a direct,
                 copy-and-paste answer?
                 <br />
@@ -228,7 +228,7 @@ const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
                 </span>
               </li>
               <li>
-                <strong>Conceptual Understanding</strong> – Do you show that you
+                <strong>Conceptual Understanding</strong> - Do you show that you
                 understand the topic you&apos;re asking about?
                 <br />
                 <span className="feedback-info-good">
@@ -243,7 +243,7 @@ const FeedbackPanel = ({ qualityScore, feedback, loading = false }) => {
                 </span>
               </li>
               <li>
-                <strong>Self-Direction</strong> – Are you working with the AI,
+                <strong>Self-Direction</strong> - Are you working with the AI,
                 instead of asking it to do everything for you?
                 <br />
                 <span className="feedback-info-good">

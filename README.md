@@ -1,4 +1,4 @@
-# WELCOME!!
+# Welcome!
 
 # This is prompt.ly: Prompt better, think better.
 
@@ -32,11 +32,12 @@ Businesses are also confronted with a dual-pronged challenge with GenAI - how ca
 
 ## Proof of Efficacy
 
-I am currently running a study to determine if this tool is effective. The format of the study will replicate the methods from the May 2025 MIT Study that found that heavy LLM use is associated with cognitive decline. In the study, participants will be asked to complete a series of timed SAT-style essays with some form of assistance. This assistance will either be: nothing, an LLM of the participant's choice, or prompt.ly. Responses will then be independently evaluated for quality, and tests will be run to determine both recall/ownership of the work from the original authors and ability to do the task unassisted. The goal of this experiment is to see if prompt.ly helps test subjects generate high-quality output with stronger senses of ownership and ability to repeat the activity at a later date.
+I ran a study to determine if this tool is effective. The format of the study replicated some of the methods from the May 2025 MIT Study that found that heavy LLM use is associated with cognitive decline. In the study, participants were asked to complete two timed SAT-style essays with some form of assistance. In the first essay, their assistance was one of the following: nothing, an LLM of the participant's choice, or prompt.ly. In the second, all participants had to write unassisted. Responses were independently evaluated for quality and reflection questions were asked to determine recall and ownership of the work from the original authors. Here are the results from the abstract of my paper: Results indicate that while conventional
+LLM assistance produced the strongest essays under time constraints, prompt.ly users demonstrated more ownership over their work and the strongest absolute performance when subsequently writing unassisted (as well as +6% performance from session 1 to 2 compared to -9% in LLM group).
 
 ## Use of AI Disclosure
 
-As I explained in genai_usage_disclosure.md, I marked in the code where I used Cursor, which was the only GenAI tool I used in coding this project. As my writeup describes, I allowed participants in my psychological study's LLM group to use an LLM of their choice. I will also add that the directory structure was also recommended by Cursor - couldn't put that in a specific area in the code.
+As I explained in genai_usage_disclosure.md, I marked in the code at the top of files where I used Cursor, which was the only GenAI tool I used in coding this project. As my writeup describes, I allowed participants in my psychological study's LLM group to use an LLM of their choice. I will also add that the directory structure was also recommended by Cursor - couldn't put that in a specific area in the code. The code is explained through in line comments.
 
 ## Testing information
 
